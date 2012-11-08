@@ -557,7 +557,7 @@ get_sock_family( char *family )
 }
 
 static void
-reset_mcast_channels( void )
+reset_recv_channels( void )
 {
   int i;
   int num_udp_recv_channels   = cfg_size( config_file, "udp_recv_channel");
@@ -574,10 +574,14 @@ reset_mcast_channels( void )
       mcast_if       = cfg_getstr( udp_recv_channel, "mcast_if" );
       port           = cfg_getint( udp_recv_channel, "port");
 
+      socket = udp_recv_sockets[i];
       if ( mcast_join )
         {
-          socket = udp_recv_sockets[i];
           join_mcast(global_context, socket, mcast_join, port, mcast_if);
+        } else {
+          char buf[max_udp_message_len];
+          apr_size_t len = max_udp_message_len;
+          apr_socket_recv(socket, 0, buf, &len);
         }
     }
 }
@@ -3214,9 +3218,10 @@ main ( int argc, char *argv[] )
           /* if we went deaf, re-subscribe to the multicast channel */
           if ((now - udp_last_heard) > 60 * APR_USEC_PER_SEC)
             {
+              err_msg("Not received any metric data for %d seconds. Reset UDP receive channels.", (int)(now - udp_last_heard) / APR_USEC_PER_SEC);
               /* FIXME: maybe this should be done for the affected
                         channel only? */
-              reset_mcast_channels();
+              reset_recv_channels();
               /* reset the timer */
               udp_last_heard = now;
             }
