@@ -559,29 +559,98 @@ get_sock_family( char *family )
 static void
 reset_recv_channels( void )
 {
-  int i;
   int num_udp_recv_channels   = cfg_size( config_file, "udp_recv_channel");
 
-  for(i = 0; i< num_udp_recv_channels; i++)
+  for(int i = 0; i< num_udp_recv_channels; i++)
     {
       cfg_t *udp_recv_channel;
-      char *mcast_join, *mcast_if;
-      int port;
+      char *mcast_join, *mcast_if, *bindaddr, *family;
+      int port, retry_bind, buffer;
       apr_socket_t *socket = NULL;
+      apr_pollfd_t socket_pollfd;
+      apr_pool_t *pool = NULL;
+      int32_t sock_family = APR_INET;
+      apr_int32_t rx_buf_sz;
+      socklen_t _optlen;
 
       udp_recv_channel = cfg_getnsec( config_file, "udp_recv_channel", i);
       mcast_join     = cfg_getstr( udp_recv_channel, "mcast_join" );
       mcast_if       = cfg_getstr( udp_recv_channel, "mcast_if" );
       port           = cfg_getint( udp_recv_channel, "port");
+      bindaddr       = cfg_getstr( udp_recv_channel, "bind");
+      family         = cfg_getstr( udp_recv_channel, "family");
+      retry_bind     = cfg_getbool( udp_recv_channel, "retry_bind");
+      buffer         = cfg_getint( udp_recv_channel, "buffer");
 
-      socket = udp_recv_sockets[i];
+      debug_msg("udp_recv_channel mcast_join=%s mcast_if=%s port=%d bind=%s buffer=%d",
+                mcast_join? mcast_join:"NULL",
+                mcast_if? mcast_if:"NULL", port,
+                bindaddr? bindaddr: "NULL", buffer);
+
+      /* Create a sub-pool for this channel */
+      apr_pool_create(&pool, global_context);
+
+      sock_family = get_sock_family(family);
+
       if ( mcast_join )
         {
-          join_mcast(global_context, socket, mcast_join, port, mcast_if);
-        } else {
+          socket = udp_recv_sockets[i];
+          join_mcast(pool, socket, mcast_join, port, mcast_if);
+        }
+      else
+        {
+          /*
           char buf[max_udp_message_len];
           apr_size_t len = max_udp_message_len;
           apr_socket_recv(socket, 0, buf, &len);
+          */
+
+          socket = udp_recv_sockets[i];
+
+          /* Build the socket poll file descriptor structure */
+          socket_pollfd.desc_type   = APR_POLL_SOCKET;
+          socket_pollfd.reqevents   = APR_POLLIN;
+          socket_pollfd.desc.s      = socket;
+
+          apr_pollset_remove(udp_listen_channels, &socket_pollfd);
+          apr_socket_close(socket);
+          socket = create_udp_server( pool, sock_family, port, bindaddr );
+
+      /* Build the socket poll file descriptor structure */
+      socket_pollfd.desc_type   = APR_POLL_SOCKET;
+      socket_pollfd.reqevents   = APR_POLLIN;
+      socket_pollfd.desc.s      = socket;
+
+      udp_recv_sockets[i] = socket;
+
+      channel = apr_pcalloc( pool, sizeof(Ganglia_channel));
+      if(!channel)
+        {
+          err_msg("Unable to malloc memory for channel.  Exiting. \n");
+          exit(1);
+        }
+
+      /* Mark this channel as a udp_recv_channel */
+      channel->type = UDP_RECV_CHANNEL;
+
+      /* Make sure this socket never blocks */
+      channel->timeout = 0;
+      apr_socket_timeout_set( socket, channel->timeout);
+
+      /* Save the ACL information */
+      channel->acl = Ganglia_acl_create ( udp_recv_channel, pool );
+
+      /* Save the pointer to this socket specific data */
+      socket_pollfd.client_data = channel;
+
+      /* Add the socket to the pollset */
+      status = apr_pollset_add(udp_listen_channels, &socket_pollfd);
+      if(status != APR_SUCCESS)
+        {
+          err_msg("Failed to add socket to pollset. Exiting.\n");
+          exit(1);
+        }
+
         }
     }
 }
@@ -3218,7 +3287,7 @@ main ( int argc, char *argv[] )
           /* if we went deaf, re-subscribe to the multicast channel */
           if ((now - udp_last_heard) > 60 * APR_USEC_PER_SEC)
             {
-              err_msg("Not received any metric data for %d seconds. Reset UDP receive channels.", (int)(now - udp_last_heard) / APR_USEC_PER_SEC);
+              err_msg("Not received any metric data for %d seconds. Reset UDP receive channels.", (int)((now - udp_last_heard) / APR_USEC_PER_SEC));
               /* FIXME: maybe this should be done for the affected
                         channel only? */
               reset_recv_channels();
