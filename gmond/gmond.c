@@ -606,51 +606,57 @@ reset_recv_channels( void )
           */
 
           socket = udp_recv_sockets[i];
-
-          /* Build the socket poll file descriptor structure */
           socket_pollfd.desc_type   = APR_POLL_SOCKET;
           socket_pollfd.reqevents   = APR_POLLIN;
           socket_pollfd.desc.s      = socket;
 
+          /* Close and re-open UDP receive socket */
           apr_pollset_remove(udp_listen_channels, &socket_pollfd);
           apr_socket_close(socket);
           socket = create_udp_server( pool, sock_family, port, bindaddr );
 
-      /* Build the socket poll file descriptor structure */
-      socket_pollfd.desc_type   = APR_POLL_SOCKET;
-      socket_pollfd.reqevents   = APR_POLLIN;
-      socket_pollfd.desc.s      = socket;
+          if(buffer)
+            {
+              if(apr_socket_opt_set(socket, APR_SO_RCVBUF, (apr_int32_t) buffer) != APR_SUCCESS)
+                {
+                  err_msg("Error setting UDP receive buffer for port %d bind=%s to size: %d. Check Operating System limits or change buffer size. Exiting.\n",
+                    port, bindaddr? bindaddr: "unspecified", (apr_int32_t) buffer);
+                  exit(1);
+                }
+            }
 
-      udp_recv_sockets[i] = socket;
+          udp_recv_sockets[i] = socket;
+          socket_pollfd.desc_type   = APR_POLL_SOCKET;
+          socket_pollfd.reqevents   = APR_POLLIN;
+          socket_pollfd.desc.s      = socket;
 
-      channel = apr_pcalloc( pool, sizeof(Ganglia_channel));
-      if(!channel)
-        {
-          err_msg("Unable to malloc memory for channel.  Exiting. \n");
-          exit(1);
-        }
+          channel = apr_pcalloc( pool, sizeof(Ganglia_channel));
+          if(!channel)
+            {
+              err_msg("Unable to malloc memory for channel.  Exiting. \n");
+              exit(1);
+            }
 
-      /* Mark this channel as a udp_recv_channel */
-      channel->type = UDP_RECV_CHANNEL;
+          /* Mark this channel as a udp_recv_channel */
+          channel->type = UDP_RECV_CHANNEL;
 
-      /* Make sure this socket never blocks */
-      channel->timeout = 0;
-      apr_socket_timeout_set( socket, channel->timeout);
+          /* Make sure this socket never blocks */
+          channel->timeout = 0;
+          apr_socket_timeout_set( socket, channel->timeout);
 
-      /* Save the ACL information */
-      channel->acl = Ganglia_acl_create ( udp_recv_channel, pool );
+          /* Save the ACL information */
+          channel->acl = Ganglia_acl_create ( udp_recv_channel, pool );
 
-      /* Save the pointer to this socket specific data */
-      socket_pollfd.client_data = channel;
+          /* Save the pointer to this socket specific data */
+          socket_pollfd.client_data = channel;
 
-      /* Add the socket to the pollset */
-      status = apr_pollset_add(udp_listen_channels, &socket_pollfd);
-      if(status != APR_SUCCESS)
-        {
-          err_msg("Failed to add socket to pollset. Exiting.\n");
-          exit(1);
-        }
-
+          /* Add the socket to the pollset */
+          status = apr_pollset_add(udp_listen_channels, &socket_pollfd);
+          if(status != APR_SUCCESS)
+            {
+              err_msg("Failed to add socket to pollset. Exiting.\n");
+              exit(1);
+            }
         }
     }
 }
