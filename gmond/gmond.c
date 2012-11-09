@@ -560,6 +560,8 @@ static void
 reset_recv_channels( void )
 {
   int num_udp_recv_channels   = cfg_size( config_file, "udp_recv_channel");
+  Ganglia_channel *channel;
+  apr_status_t status;
 
   for(int i = 0; i< num_udp_recv_channels; i++)
     {
@@ -570,8 +572,6 @@ reset_recv_channels( void )
       apr_pollfd_t socket_pollfd;
       apr_pool_t *pool = NULL;
       int32_t sock_family = APR_INET;
-      apr_int32_t rx_buf_sz;
-      socklen_t _optlen;
 
       udp_recv_channel = cfg_getnsec( config_file, "udp_recv_channel", i);
       mcast_join     = cfg_getstr( udp_recv_channel, "mcast_join" );
@@ -614,6 +614,21 @@ reset_recv_channels( void )
           apr_pollset_remove(udp_listen_channels, &socket_pollfd);
           apr_socket_close(socket);
           socket = create_udp_server( pool, sock_family, port, bindaddr );
+
+         /* Re-try if necessary */
+          while(!socket)
+            {
+              if(retry_bind == cfg_false)
+                {
+                  err_msg("Error creating UDP server on port %d bind=%s.  Try setting retry_bind.  Exiting.\n",
+                    port, bindaddr? bindaddr: "unspecified");
+                  exit(1);
+                }
+              err_msg("Error creating UDP server on port %d bind=%s.  Will try again...\n",
+                  port, bindaddr? bindaddr: "unspecified");
+              apr_sleep(APR_USEC_PER_SEC * RETRY_BIND_DELAY);
+              socket = create_udp_server( pool, sock_family, port, bindaddr );
+            }
 
           if(buffer)
             {
