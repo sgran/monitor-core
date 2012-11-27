@@ -265,6 +265,7 @@ startElement_GRID(void *data, const char *el, const char **attr)
    return 0;
 }
 
+int disco_num;
 
 static int
 startElement_CLUSTER(void *data, const char *el, const char **attr)
@@ -277,6 +278,8 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    int edge;
    int i;
    Source_t *source;
+
+   disco_num = 0;
 
    /* Get name for hash key */
    for(i = 0; attr[i]; i+=2)
@@ -388,7 +391,6 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    source->stringslen = edge;
    return 0;
 }
-
 
 static int
 startElement_HOST(void *data, const char *el, const char **attr)
@@ -536,10 +538,12 @@ startElement_HOST(void *data, const char *el, const char **attr)
 
          int port = 8649;
          debug_msg("Trying to connect to %s:%d for [%s]", str, port, xmldata->ds->name);
-         xmldata->ds->sources[0] = (g_inet_addr *) g_inetaddr_new ( str, port );
-         if(! xmldata->ds->sources[0])
+         xmldata->ds->sources[disco_num] = (g_inet_addr *) g_inetaddr_new ( str, port );
+         if(! xmldata->ds->sources[disco_num])
                err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
          free(str);
+
+         disco_num++;
 
    /* Trim structure to the correct length. */
    hashval.size = sizeof(*host) - GMETAD_FRAMESIZE + host->stringslen;
