@@ -7,6 +7,8 @@
 #include "gmetad.h"
 #include "rrd_helpers.h"
 
+#define GANGLIA_HOSTNAME_LEN 128
+
 extern int zero_out_summary(datum_t *key, datum_t *val, void *arg);
 extern char* getfield(char *buf, short int index);
 
@@ -286,6 +288,10 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
             name = attr[i+1];
       }
 
+   xmldata->ds->name = realloc(xmldata->ds->name, strlen(name)+1);
+   strcpy(xmldata->ds->name, name);
+   fprintf(stderr, ">>> xmldata name = %s\n", xmldata->ds->name);
+
    /* Only keep cluster details if we are the authority on this cluster. */
    if (!authority_mode(xmldata))
       return 0;
@@ -519,6 +525,21 @@ startElement_HOST(void *data, const char *el, const char **attr)
             }
       }
    host->stringslen = edge;
+
+         struct sockaddr_in sa;
+         int rv = g_gethostbyname( getfield(host->strings, host->ip), &sa, NULL);
+         if (!rv) {
+            err_msg("Warning: we failed to resolve data source name %s", getfield(host->strings, host->ip));
+         }
+         char *str = (char*) malloc(GANGLIA_HOSTNAME_LEN);
+         my_inet_ntop(AF_INET, &sa.sin_addr, str, GANGLIA_HOSTNAME_LEN);
+
+         int port = 8649;
+         debug_msg("Trying to connect to %s:%d for [%s]", str, port, xmldata->ds->name);
+         xmldata->ds->sources[0] = (g_inet_addr *) g_inetaddr_new ( str, port );
+         if(! xmldata->ds->sources[0])
+               err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
+         free(str);
 
    /* Trim structure to the correct length. */
    hashval.size = sizeof(*host) - GMETAD_FRAMESIZE + host->stringslen;
@@ -1229,6 +1250,8 @@ process_xml(data_source_list_t *d, char *buf)
                          XML_ErrorString (XML_GetErrorCode (xml_parser)));
          xmldata.rval = 1;
       }
+
+   d->name = xmldata.ds->name;
 
    /* Free memory that might have been allocated in xmldata */
    if (xmldata.sourcename)
