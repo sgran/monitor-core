@@ -38,16 +38,6 @@ data_thread ( void *arg )
    rand_seed = apr_time_now() * (int)pthread_self();
    for(i = 0; d->name[i] != 0; rand_seed = rand_seed * d->name[i++]);
  
-   if(get_debug_msg_level())
-      {
-         fprintf(stderr,"Data thread %lu is monitoring [%s] data source\n", (unsigned long)pthread_self(), d->name);
-         for(i = 0; i < d->num_sources; i++)
-            {
-               addr = d->sources[i];
-               fprintf(stderr, "\t%s\n", addr->name);
-            }
-      }
-
    key.data = d->name;
    key.size = strlen( key.data ) + 1;
 
@@ -65,6 +55,18 @@ data_thread ( void *arg )
          start = apr_time_now();
          sock = NULL;
          
+         if(get_debug_msg_level())
+           {
+             fprintf(stderr,"Data thread %lu is monitoring [%s] data source\n", (unsigned long)pthread_self(), d->name);
+             for(i = 0; i < d->num_sources; i++)
+              {
+                addr = d->sources[i];
+                fprintf(stderr, "\t%s\n", addr->name);
+              }
+           }
+
+         /* FIXME - need to update data_source_list_t *d = ??? */
+
          /* If we successfully read from a good data source last time then try the same host again first. */
          if(d->last_good_index != -1)
            sock = g_tcp_socket_new ( d->sources[d->last_good_index] );
@@ -194,6 +196,7 @@ data_thread ( void *arg )
 
          /* Parse the buffer */
          rval = process_xml(d, buf);
+         fprintf(stderr,"Data thread %lu has processed [%s] data source, step=%d\n", (unsigned long)pthread_self(), d->name, d->step);
          if(rval)
             {
                /* We no longer consider the source dead if its XML parsing
