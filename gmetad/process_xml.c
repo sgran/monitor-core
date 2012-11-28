@@ -265,8 +265,6 @@ startElement_GRID(void *data, const char *el, const char **attr)
    return 0;
 }
 
-int disco_num;
-
 static int
 startElement_CLUSTER(void *data, const char *el, const char **attr)
 {
@@ -291,7 +289,7 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
 
    xmldata->ds->name = realloc(xmldata->ds->name, strlen(name)+1);
    strcpy(xmldata->ds->name, name);
-   fprintf(stderr, ">>> xmldata name = %s\n", xmldata->ds->name);
+   debug_msg("Rename data source = %s\n", xmldata->ds->name);
 
    /* Only keep cluster details if we are the authority on this cluster. */
    if (!authority_mode(xmldata))
@@ -356,7 +354,7 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    /* Edge has the same invariant as in fillmetric(). */
    edge = 0;
 
-   disco_num = 0;
+   xmldata->ds->num_sources = 0;
 
    source->owner = -1;
    source->latlong = -1;
@@ -528,8 +526,6 @@ startElement_HOST(void *data, const char *el, const char **attr)
       }
    host->stringslen = edge;
 
-         fprintf(stderr, "---------------------start-----------------------------------\n");
-
          struct sockaddr_in sa;
          int rv = g_gethostbyname( getfield(host->strings, host->ip), &sa, NULL);
          if (!rv) {
@@ -541,16 +537,14 @@ startElement_HOST(void *data, const char *el, const char **attr)
          int port = 8649;
          debug_msg("Add host %s:%d to [%s] data source list", str, port, xmldata->ds->name);
 
-         xmldata->ds->sources = realloc(xmldata->ds->sources, sizeof(g_inet_addr *)*(disco_num+1));
+         xmldata->ds->sources = realloc(xmldata->ds->sources, sizeof(g_inet_addr *)*(xmldata->ds->num_sources+1));
 
-         xmldata->ds->sources[disco_num] = (g_inet_addr *) g_inetaddr_new ( str, port );
-         if(! xmldata->ds->sources[disco_num])
+         xmldata->ds->sources[xmldata->ds->num_sources] = (g_inet_addr *) g_inetaddr_new ( str, port );
+         if(! xmldata->ds->sources[xmldata->ds->num_sources])
                err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
          free(str);
 
-         disco_num++;
-         xmldata->ds->num_sources = disco_num;
-         fprintf(stderr, "---------------------end-----------------------------------\n");
+         xmldata->ds->num_sources++;
 
    /* Trim structure to the correct length. */
    hashval.size = sizeof(*host) - GMETAD_FRAMESIZE + host->stringslen;

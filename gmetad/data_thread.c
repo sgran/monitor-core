@@ -95,7 +95,7 @@ data_thread ( void *arg )
                goto take_a_break;
             }
 
-         debug_msg("data_thread() polling %s for [%s] datasource", d->sources[i]->name, d->name);
+         debug_msg("data_thread() for [%s] datasource polling %s", d->name, d->sources[i]->name);
 
          struct_poll.fd = sock->sockfd;
          struct_poll.events = POLLIN; 
@@ -196,7 +196,6 @@ data_thread ( void *arg )
 
          /* Parse the buffer */
          rval = process_xml(d, buf);
-         fprintf(stderr,"Data thread %lu has processed [%s] data source, step=%d\n", (unsigned long)pthread_self(), d->name, d->step);
          if(rval)
             {
                /* We no longer consider the source dead if its XML parsing
@@ -204,6 +203,8 @@ data_thread ( void *arg )
                 */
                goto take_a_break;
             }
+
+         debug_msg("Data thread %lu has processed [%s] data source\n", (unsigned long)pthread_self(), d->name);
 
          /* We processed all the data.  Mark this source as alive */
          d->dead = 0;
