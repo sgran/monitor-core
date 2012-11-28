@@ -65,8 +65,6 @@ data_thread ( void *arg )
               }
            }
 
-         /* FIXME - need to update data_source_list_t *d = ??? */
-
          /* If we successfully read from a good data source last time then try the same host again first. */
          if(d->last_good_index != -1)
            sock = g_tcp_socket_new ( d->sources[d->last_good_index] );
@@ -96,6 +94,8 @@ data_thread ( void *arg )
                d->dead = 1;
                goto take_a_break;
             }
+
+         debug_msg("data_thread() polling %s for [%s] datasource", d->sources[i]->name, d->name);
 
          struct_poll.fd = sock->sockfd;
          struct_poll.events = POLLIN; 

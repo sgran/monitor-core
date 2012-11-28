@@ -279,8 +279,6 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    int i;
    Source_t *source;
 
-   disco_num = 0;
-
    /* Get name for hash key */
    for(i = 0; attr[i]; i+=2)
       {
@@ -357,6 +355,8 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
 
    /* Edge has the same invariant as in fillmetric(). */
    edge = 0;
+
+   disco_num = 0;
 
    source->owner = -1;
    source->latlong = -1;
@@ -528,6 +528,8 @@ startElement_HOST(void *data, const char *el, const char **attr)
       }
    host->stringslen = edge;
 
+         fprintf(stderr, "---------------------start-----------------------------------\n");
+
          struct sockaddr_in sa;
          int rv = g_gethostbyname( getfield(host->strings, host->ip), &sa, NULL);
          if (!rv) {
@@ -537,13 +539,18 @@ startElement_HOST(void *data, const char *el, const char **attr)
          my_inet_ntop(AF_INET, &sa.sin_addr, str, GANGLIA_HOSTNAME_LEN);
 
          int port = 8649;
-         debug_msg("Trying to connect to %s:%d for [%s]", str, port, xmldata->ds->name);
+         debug_msg("Add host %s:%d to [%s] data source list", str, port, xmldata->ds->name);
+
+         xmldata->ds->sources = realloc(xmldata->ds->sources, sizeof(g_inet_addr *)*(disco_num+1));
+
          xmldata->ds->sources[disco_num] = (g_inet_addr *) g_inetaddr_new ( str, port );
          if(! xmldata->ds->sources[disco_num])
                err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
          free(str);
 
          disco_num++;
+         xmldata->ds->num_sources = disco_num;
+         fprintf(stderr, "---------------------end-----------------------------------\n");
 
    /* Trim structure to the correct length. */
    hashval.size = sizeof(*host) - GMETAD_FRAMESIZE + host->stringslen;
@@ -1186,6 +1193,8 @@ endElement_CLUSTER(void *data, const char *el)
          }
          /* Write the metric summaries to the RRD. */
          hash_foreach(summary, finish_processing_source, data);
+
+         xmldata->ds->last_good_index = -1;
       }
    return 0;
 }
