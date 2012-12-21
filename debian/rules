@@ -32,11 +32,9 @@ config.status: configure
 		--libdir=\$${prefix}/lib \
 		--sysconfdir=/etc/ganglia \
 		--infodir=\$${prefix}/share/info --enable-shared \
-		--with-gmetad  
-build: build-stamp
-	make -C web
+		--enable-status
 
-build-stamp:  config.status
+build:  config.status
 	dh_testdir
 
 	# Add here commands to compile the package.
@@ -92,14 +90,6 @@ install: build
 	cp gmond/python_modules/*/*.py \
 		debian/ganglia-monitor-python/usr/lib/ganglia/python_modules/
 
-#Install webfrontend
-	$(MAKE) -C web install APACHE_USER=www-data DESTDIR=$(CURDIR)/debian/ganglia-webfrontend/usr/share/ganglia-webfrontend
-	mkdir -p debian/ganglia-webfrontend/etc/apache2/conf.d/
-	cp -f web/debian/apache.conf \
-		 debian/ganglia-webfrontend/etc/ganglia-webfrontend
-	cp -f web/debian/conf_debian.php \
-		 debian/ganglia-webfrontend/usr/share/ganglia-webfrontend/conf.php
-
 # Build architecture-independent files here.
 binary-indep: build install
 # We have nothing to do by default.
@@ -125,8 +115,8 @@ binary-arch: build install
 	dh_installdocs -pganglia-monitor -Xlibganglia 
 	dh_installdocs -plibganglia1-dev 
 	dh_installdocs -plibganglia1 
-	dh_installdocs -pgmetad
-	cp $(CURDIR)/gmetad/gmetad.conf $(CURDIR)/debian/gmetad/etc/ganglia
+#	dh_installdocs -pgmetad
+#	cp $(CURDIR)/gmetad/gmetad.conf $(CURDIR)/debian/gmetad/etc/ganglia
 	cp $(CURDIR)/debian/gmond.conf $(CURDIR)/debian/ganglia-monitor/etc/ganglia
 	dh_installexamples
 	dh_installmenu -s
@@ -134,7 +124,7 @@ binary-arch: build install
 	dh_installcron -s
 	dh_installman -pganglia-monitor
 	dh_installman -plibganglia1-dev
-	dh_installman -pgmetad
+#	dh_installman -pgmetad
 	dh_installinfo -s
 	dh_installchangelogs
 	dh_link -s
