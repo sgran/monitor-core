@@ -164,3 +164,18 @@ case_sensitive_hostnames 0
 # carbon_timeout 500
 #
 
+#-------------------------------------------------------------------------------
+# Walk hosts mode. If on, gmetad will only use the data_source to seed initial 
+# discovery of the sources to poll. Once locked on to a gmond it will use the list
+# of hosts returned by a gmond as the list of sources. As hosts come and go in 
+# a dynamic (cloud?) environment the gmetad will continually update this list of
+# sources it is polling.
+# default: off
+# walk_hosts on
+
+# It is not possible to discover what TCP port a gmond is listening on so it is
+# necessary to assume that the default port is used or to set it here. It must
+# be the same for all hosts.
+# default: 8649
+# walk_hosts_port 8649
+

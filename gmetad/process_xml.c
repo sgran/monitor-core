@@ -287,10 +287,6 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
             name = attr[i+1];
       }
 
-   xmldata->ds->name = realloc(xmldata->ds->name, strlen(name)+1);
-   strcpy(xmldata->ds->name, name);
-   debug_msg("Rename data source = %s\n", xmldata->ds->name);
-
    /* Only keep cluster details if we are the authority on this cluster. */
    if (!authority_mode(xmldata))
       return 0;
@@ -354,7 +350,9 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    /* Edge has the same invariant as in fillmetric(). */
    edge = 0;
 
-   xmldata->ds->num_sources = 0;
+   /* Reset number of sources */
+   if (gmetad_config.walk_hosts)
+      xmldata->ds->num_sources = 0;
 
    source->owner = -1;
    source->latlong = -1;
@@ -389,6 +387,7 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    source->stringslen = edge;
    return 0;
 }
+
 
 static int
 startElement_HOST(void *data, const char *el, const char **attr)
@@ -526,6 +525,10 @@ startElement_HOST(void *data, const char *el, const char **attr)
       }
    host->stringslen = edge;
 
+   if (gmetad_config.walk_hosts)
+      {
+         debug_msg("Dynamically determining data source list for %s", xmldata->ds->name);
+
          struct sockaddr_in sa;
          int rv = g_gethostbyname( getfield(host->strings, host->ip), &sa, NULL);
          if (!rv) {
@@ -534,7 +537,12 @@ startElement_HOST(void *data, const char *el, const char **attr)
          char *str = (char*) malloc(GANGLIA_HOSTNAME_LEN);
          my_inet_ntop(AF_INET, &sa.sin_addr, str, GANGLIA_HOSTNAME_LEN);
 
-         int port = 8649;
+         int port;
+         if (gmetad_config.walk_hosts_port)
+            port = gmetad_config.walk_hosts_port;
+         else
+            port = 8649;
+
          debug_msg("Add host %s:%d to [%s] data source list", str, port, xmldata->ds->name);
 
          xmldata->ds->sources = realloc(xmldata->ds->sources, sizeof(g_inet_addr *)*(xmldata->ds->num_sources+1));
@@ -545,6 +553,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
          free(str);
 
          xmldata->ds->num_sources++;
+      }
 
    /* Trim structure to the correct length. */
    hashval.size = sizeof(*host) - GMETAD_FRAMESIZE + host->stringslen;
@@ -1188,7 +1197,9 @@ endElement_CLUSTER(void *data, const char *el)
          /* Write the metric summaries to the RRD. */
          hash_foreach(summary, finish_processing_source, data);
 
-         xmldata->ds->last_good_index = -1;
+         /* Don't assume the last successful poll will be at the same index */
+         if (gmetad_config.walk_hosts)
+            xmldata->ds->last_good_index = -1;
       }
    return 0;
 }
@@ -1257,8 +1268,6 @@ process_xml(data_source_list_t *d, char *buf)
                          XML_ErrorString (XML_GetErrorCode (xml_parser)));
          xmldata.rval = 1;
       }
-
-   d->name = xmldata.ds->name;
 
    /* Free memory that might have been allocated in xmldata */
    if (xmldata.sourcename)

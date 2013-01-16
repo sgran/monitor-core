@@ -302,6 +302,23 @@ static DOTCONF_CB(cb_unsummarized_metrics)
    return NULL;
 }
 
+static DOTCONF_CB(cb_walk_hosts)
+{
+   gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+   debug_msg("Setting walk hosts = %s", cmd->data.str);
+   if (!strcmp(cmd->data.str, "off"))
+      c->walk_hosts = 0;
+   return NULL;
+}
+
+static DOTCONF_CB(cb_walk_hosts_port)
+{
+   gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+   debug_msg("Setting gmond port for walk hosts to %ld", cmd->data.value);
+   c->walk_hosts_port = cmd->data.value;
+   return NULL;
+}
+
 static FUNC_ERRORHANDLER(errorhandler)
 {
    err_quit("gmetad config file error: %s\n", msg);
@@ -332,6 +349,8 @@ static configoption_t gmetad_options[] =
       {"carbon_timeout", ARG_INT, cb_carbon_timeout, &gmetad_config, 0},
       {"graphite_prefix", ARG_STR, cb_graphite_prefix, &gmetad_config, 0},
       {"unsummarized_metrics", ARG_LIST, cb_unsummarized_metrics, &gmetad_config, 0},
+      {"walk_hosts", ARG_STR, cb_walk_hosts, &gmetad_config, 0},
+      {"walk_hosts_port", ARG_INT, cb_walk_hosts_port, &gmetad_config, 0},
       LAST_OPTION
    };
 
@@ -358,6 +377,7 @@ set_defaults (gmetad_config_t *config)
    config->RRAs[2] = "RRA:AVERAGE:0.5:40:52704";
    config->case_sensitive_hostnames = 1;
    config->unsummarized_metrics = NULL;
+   config->walk_hosts = 0;
 }
 
 int
