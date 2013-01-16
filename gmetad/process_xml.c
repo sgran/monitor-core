@@ -265,6 +265,7 @@ startElement_GRID(void *data, const char *el, const char **attr)
    return 0;
 }
 
+
 static int
 startElement_CLUSTER(void *data, const char *el, const char **attr)
 {
