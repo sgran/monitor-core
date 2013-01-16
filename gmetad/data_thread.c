@@ -95,8 +95,6 @@ data_thread ( void *arg )
                goto take_a_break;
             }
 
-         debug_msg("data_thread() for [%s] datasource polling %s", d->name, d->sources[i]->name);
-
          struct_poll.fd = sock->sockfd;
          struct_poll.events = POLLIN; 
 

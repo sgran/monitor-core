@@ -306,8 +306,8 @@ static DOTCONF_CB(cb_walk_hosts)
 {
    gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
    debug_msg("Setting walk hosts = %s", cmd->data.str);
-   if (!strcmp(cmd->data.str, "off"))
-      c->walk_hosts = 0;
+   if (!strcmp(cmd->data.str, "on"))
+      c->walk_hosts = 1;
    return NULL;
 }
 
