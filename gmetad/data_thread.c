@@ -98,6 +98,8 @@ data_thread ( void *arg )
          struct_poll.fd = sock->sockfd;
          struct_poll.events = POLLIN; 
 
+         debug_msg(">>>>>>> Polling %s for data source %s", d->sources[d->last_good_index]->name, d->name);
+
          read_index = 0;
          for(;;)
             {
