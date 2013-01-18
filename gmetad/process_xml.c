@@ -55,6 +55,7 @@ typedef struct
 }
 xmldata_t;
 
+char *last_good_name;
 
 /* Authority mode is true if we are within the first level GRID. */
 static int
@@ -351,9 +352,13 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    /* Edge has the same invariant as in fillmetric(). */
    edge = 0;
 
-   /* Reset number of sources */
    if (gmetad_config.walk_hosts)
-      xmldata->ds->num_sources = 0;
+      {
+         xmldata->ds->num_sources = 0;
+         last_good_name = strdup(xmldata->ds->sources[xmldata->ds->last_good_index]->name);
+         debug_msg("[walk] Last good data source was: %s", last_good_name);
+         xmldata->ds->last_good_index = -1;
+      }
 
    source->owner = -1;
    source->latlong = -1;
@@ -528,7 +533,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
 
    if (gmetad_config.walk_hosts)
       {
-         debug_msg("Dynamically determining data source list for %s", xmldata->ds->name);
+         debug_msg("[walk] add %s to data source list for %s", getfield(host->strings, host->ip), xmldata->ds->name);
 
          struct sockaddr_in sa;
          int rv = g_gethostbyname( getfield(host->strings, host->ip), &sa, NULL);
@@ -544,14 +549,16 @@ startElement_HOST(void *data, const char *el, const char **attr)
          else
             port = 8649;
 
-         debug_msg("Add host %s:%d to [%s] data source list", str, port, xmldata->ds->name);
-
          xmldata->ds->sources = realloc(xmldata->ds->sources, sizeof(g_inet_addr *)*(xmldata->ds->num_sources+1));
-
          xmldata->ds->sources[xmldata->ds->num_sources] = (g_inet_addr *) g_inetaddr_new ( str, port );
          if(! xmldata->ds->sources[xmldata->ds->num_sources])
                err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
          free(str);
+
+         if (!strcmp(getfield(host->strings, host->ip), last_good_name)) {
+             xmldata->ds->last_good_index = xmldata->ds->num_sources;
+             debug_msg("[walk] This is the last good host so set last good index = %d", xmldata->ds->last_good_index);
+         }
 
          xmldata->ds->num_sources++;
       }
@@ -1225,10 +1232,6 @@ endElement_CLUSTER(void *data, const char *el)
          }
          /* Write the metric summaries to the RRD. */
          hash_foreach(summary, finish_processing_source, data);
-
-         /* Don't assume the last successful poll will be at the same index */
-         if (gmetad_config.walk_hosts)
-            xmldata->ds->last_good_index = -1;
       }
    return 0;
 }
