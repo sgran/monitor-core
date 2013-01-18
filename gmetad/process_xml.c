@@ -55,8 +55,6 @@ typedef struct
 }
 xmldata_t;
 
-char *last_good_name;
-
 /* Authority mode is true if we are within the first level GRID. */
 static int
 authority_mode(xmldata_t *xmldata)
@@ -267,6 +265,8 @@ startElement_GRID(void *data, const char *el, const char **attr)
 }
 
 
+uint32_t most_recent_started;
+
 static int
 startElement_CLUSTER(void *data, const char *el, const char **attr)
 {
@@ -355,9 +355,8 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
    if (gmetad_config.walk_hosts)
       {
          xmldata->ds->num_sources = 0;
-         last_good_name = strdup(xmldata->ds->sources[xmldata->ds->last_good_index]->name);
-         debug_msg("[walk] Last good data source was: %s", last_good_name);
          xmldata->ds->last_good_index = -1;
+         most_recent_started = 0;
       }
 
    source->owner = -1;
@@ -524,6 +523,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
 		  break;
                case STARTED_TAG:
                   host->started = strtoul(attr[i+1], (char **)NULL, 10);
+                  debug_msg("[walk] %s host started at %zu", getfield(host->strings, host->ip), host->started);
                   break;
                default:
                   break;
@@ -533,7 +533,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
 
    if (gmetad_config.walk_hosts)
       {
-         debug_msg("[walk] add %s to data source list for %s", getfield(host->strings, host->ip), xmldata->ds->name);
+         debug_msg("[walk] Adding %s to [%s] data source", getfield(host->strings, host->ip), xmldata->ds->name);
 
          struct sockaddr_in sa;
          int rv = g_gethostbyname( getfield(host->strings, host->ip), &sa, NULL);
@@ -555,10 +555,12 @@ startElement_HOST(void *data, const char *el, const char **attr)
                err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
          free(str);
 
-         if (!strcmp(getfield(host->strings, host->ip), last_good_name)) {
-             xmldata->ds->last_good_index = xmldata->ds->num_sources;
-             debug_msg("[walk] This is the last good host so set last good index = %d", xmldata->ds->last_good_index);
-         }
+         if (host->started >= most_recent_started)
+            {
+               xmldata->ds->last_good_index = xmldata->ds->num_sources;
+               debug_msg("[walk] Update last good index to %d", xmldata->ds->last_good_index);
+               most_recent_started = host->started;
+            }
 
          xmldata->ds->num_sources++;
       }
