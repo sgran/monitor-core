@@ -555,7 +555,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
                err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
          free(str);
 
-         if (host->started >= most_recent_started)
+         if (xmldata->host_alive && host->started >= most_recent_started)
             {
                xmldata->ds->last_good_index = xmldata->ds->num_sources;
                debug_msg("[walk] Update last good index to %d", xmldata->ds->last_good_index);
