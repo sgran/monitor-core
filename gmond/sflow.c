@@ -210,7 +210,7 @@ set_metric_name_and_title(char **mname, char **mtitle, char *mname_buf, char *mt
   *mname =  SFLOWGMetricTable[tag].mname;
   *mtitle =  SFLOWGMetricTable[tag].title;
   if(metric_prefix) {
-    snprintf(mname_buf, SFLOW_MAX_METRIC_NAME_LEN, "%s.%s", metric_prefix, *mname);
+    snprintf(mname_buf, SFLOW_MAX_METRIC_NAME_LEN, "%s-%s", *mname, metric_prefix);
     *mname = mname_buf;
     snprintf(mtitle_buf, SFLOW_MAX_METRIC_NAME_LEN, "%s: %s", metric_prefix, *mtitle);
     *mtitle = mtitle_buf;
