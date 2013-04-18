@@ -7,12 +7,12 @@ dnl Permission to use, copy, modify, and distribute this software and its
 dnl documentation for any purpose, without fee, and without written agreement is
 dnl hereby granted, provided that the above copyright notice and the following
 dnl two paragraphs appear in all copies of this software.
-dnl 
+dnl
 dnl IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
 dnl DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT
 dnl OF THE USE OF THIS SOFTWARE AND ITS DOCUMENTATION, EVEN IF THE UNIVERSITY OF
 dnl CALIFORNIA HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-dnl 
+dnl
 dnl THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
 dnl INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
 dnl AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
@@ -28,7 +28,7 @@ AC_CONFIG_AUX_DIR(build)
 
 ### BEGIN RELEASE VARIABLES ############################
 # On making a release...
-# If this release is just a minor bug fix release, increment 
+# If this release is just a minor bug fix release, increment
 # GANGLIA_MICRO_VERSION.
 #
 # If this release adds significant features or breaks backward compatibility,
@@ -36,11 +36,11 @@ AC_CONFIG_AUX_DIR(build)
 #
 # If this release is a complete restructuring of
 # the overall architecture of ganglia,
-# increment GANGLIA_MAJOR_VERSION and set 
+# increment GANGLIA_MAJOR_VERSION and set
 # GANGLIA_MINOR_VERSION and GANGLIA_MICRO_VERSION
-# to 0 (zero) 
+# to 0 (zero)
 GANGLIA_MAJOR_VERSION=3
-GANGLIA_MINOR_VERSION=5
+GANGLIA_MINOR_VERSION=6
 GANGLIA_MICRO_VERSION=0
 
 # REL is used for various packaging systems:
@@ -48,7 +48,7 @@ GANGLIA_MICRO_VERSION=0
 # - it is the `Release:' parameter in the spec file
 # - appended after the version number, using a hyphen, e.g. X.X.X-REL
 # Solaris:
-# - it can be used as part of the VERSION= parameter in the 
+# - it can be used as part of the VERSION= parameter in the
 #   pkginfo file (man 4 pkginfo), e.g. VERSION=X.X.X,REV=@REL@
 #   appears to be consistent with the way Blastwave does things
 REL=1
@@ -125,13 +125,13 @@ dnl
 AC_PROG_CC
 AC_PROG_CC_STDC
 AC_PROG_LIBTOOL
-m4_ifdef([AC_PROG_SED],                                                        
-  [AC_PROG_SED],                                                               
-  [                                                                            
-    SED="sed"                                                                  
-    AC_SUBST([SED])                                                            
-  ]                                                                            
-) 
+m4_ifdef([AC_PROG_SED],
+  [AC_PROG_SED],
+  [
+    SED="sed"
+    AC_SUBST([SED])
+  ]
+)
 
 AC_ARG_ENABLE( static-build,
 [  --enable-static-build   Statically link libGanglia, APR, Expat and Confuse libraries (may disable some metric modules) ],
@@ -196,14 +196,9 @@ AC_ARG_WITH( libpcre,
 [if test x"$withval" != xno; then libpcre="yes"; libpcrepath="$withval"; fi],
 [libpcre=yes; libpcrepath=yes ])
 
-AC_ARG_WITH( libcurl,
-[  --with-libcurl=DIR      Specify location for libcurl],
-[if test x"$withval" != xno; then libcurl="yes"; libcurlpath="$withval"; fi],
-[libcurl=yes; libcurlpath=yes ])
-
 AC_ARG_WITH( moduledir,
 [  --with-moduledir=DIR    Base directory for dynamically loadable modules],
-  moduledir="$withval", 
+  moduledir="$withval",
   moduledir="$libdir/ganglia")
 
 AC_ARG_ENABLE(debug,
@@ -212,7 +207,7 @@ AC_ARG_ENABLE(debug,
 [ CFLAGS="$CFLAGS -ggdb -O0"
   AC_DEFINE(DEBUG, 1, DEBUG)])
 # Turn off optimizations when debugging.
-#[ CFLAGS="$CFLAGS -O2" 
+#[ CFLAGS="$CFLAGS -O2"
 #  AC_DEFINE(DEBUG, 0, DEBUG)])
 
 AC_ARG_ENABLE(gexec,
@@ -237,8 +232,8 @@ AC_DEFINE_UNQUOTED(NO_SETGID, $no_setgid, NO_SETGID)
 AC_DEFINE_UNQUOTED(SETGID_GROUP, "$setgid_group", SETGID_GROUP)
 AC_SUBST(setgid_group)
 
-AC_ARG_ENABLE(pedantic,   
-[  --enable-pedantic       turn on pedantic mode during compile],     
+AC_ARG_ENABLE(pedantic,
+[  --enable-pedantic       turn on pedantic mode during compile],
 [ CFLAGS="$CFLAGS --pedantic" ],)
 
 AC_ARG_ENABLE(memcheck,
@@ -252,8 +247,8 @@ AC_ARG_ENABLE( python,
 [ if test x"$enableval" != xyes; then enable_python="no"; fi ], [ enable_python="yes" ] )
 
 AC_ARG_ENABLE( perl,
-[  --disable-perl          exclude mod_perl and support for metric modules written in perl],
-[ if test x"$enableval" != xyes; then enable_perl="no"; fi ], [ enable_perl="yes" ] )
+[  --enable-perl           include mod_perl and support for metric modules written in perl],
+[ if test x"$enableval" != xno; then enable_perl="yes"; fi ], [ enable_perl="no" ] )
 
 AC_ARG_ENABLE( php,
 [  --enable-php            include mod_php and support for metric modules written in php],
@@ -261,8 +256,8 @@ AC_ARG_ENABLE( php,
 
 AC_ARG_ENABLE( status,
 [  --enable-status         compile and install modgstatus to enable gmond status metric module support],
-[ enable_status="yes" 
-  AC_DEFINE(GSTATUS, 1, GSTATUS)], 
+[ enable_status="yes"
+  AC_DEFINE(GSTATUS, 1, GSTATUS)],
 [ enable_status="no" ] )
 
 AM_CONDITIONAL(BUILD_STATUS, test x"$enable_status" = xyes)
@@ -313,7 +308,7 @@ if test x"$gmetad" = xyes; then
          echo "monitoring core with gmetad but librrd could not be found.  Please"
          echo "visit http://www.rrdtool.org/, download rrdtool and then try again"
          echo
-         exit;
+         exit 1;
       fi
    fi
 fi
@@ -345,7 +340,7 @@ if test x"$enable_python" = xyes; then
     PyEXEC_INSTALLDIR=`$PYTHON_BIN -c "import sys; print sys.exec_prefix"`
     if test -f "$PyEXEC_INSTALLDIR/include/python/Python.h"; then
       PYTHON_INCLUDES="-I$PyEXEC_INSTALLDIR/include/python"
-    else 
+    else
       if test -f "$PyEXEC_INSTALLDIR/include/python$PyVERSION/Python.h"; then
         PYTHON_INCLUDES="-I$PyEXEC_INSTALLDIR/include/python$PyVERSION"
       else
@@ -392,7 +387,7 @@ if test x"$enable_perl" = xyes; then
     else
       AC_MSG_RESULT(no)
       AC_MSG_ERROR(Module not found, please install or specify --disable-perl to disable mod_perl support)
-      exit
+      exit 1
     fi
   else
     enable_perl="no"
@@ -430,7 +425,12 @@ if test x"$enable_php" = xyes; then
   fi
 
   if test -n "$PHP_CONFIG_BIN"; then
-    php_cv_version_5="yes"
+    # find out php version
+    PHP_FULL_VERSION=`$PHP_CONFIG_BIN --version`
+    AC_CACHE_CHECK([PHP version >= 5.3], [php_cv_version_5],
+        [AX_COMPARE_VERSION([$PHP_FULL_VERSION], [ge], [5.3],
+            [php_cv_version_5="yes"],
+            [php_cv_version_5="no"])])
     if test "$php_cv_version_5" = "yes"; then
         PHP_VERSION=5
     else
@@ -441,12 +441,12 @@ if test x"$enable_php" = xyes; then
     AC_MSG_CHECKING(PHP Include dir)
     PHP_INCLUDE_DIR=`$PHP_CONFIG_BIN --include-dir`
     AC_MSG_RESULT($PHP_INCLUDE_DIR)
-    
+
     if test -f "$PHP_INCLUDE_DIR/sapi/embed/php_embed.h"; then
         PHP_INCLUDES=`$PHP_CONFIG_BIN --includes`
         CPPFLAGS+=$PHP_INCLUDES
         LDFLAGS+=" -L`$PHP_CONFIG_BIN --prefix`/lib"
-    else 
+    else
         PHP_INCLUDES=""
     fi
     AC_CHECK_HEADER([sapi/embed/php_embed.h], [],
@@ -476,8 +476,10 @@ x86_64*linux*)
   ;;
 esac
 
+PKG_PROG_PKG_CONFIG
+
 echo
-echo Checking for apr and aprutil
+echo Checking for apr
 if test x"$libaprpath" != x && test x"$libaprpath" != xyes; then
   if test -f "$libaprpath" ; then
     APR_INCLUDES=`$libaprpath --includes`
@@ -485,7 +487,6 @@ if test x"$libaprpath" != x && test x"$libaprpath" != xyes; then
     APR_LIBPATH=`$libaprpath --link-ld`
     LDFLAGS="$LDFLAGS -L`expr "x$APR_LIBPATH" : '.*-L\(.*\) '`"
     AC_CHECK_LIB(apr-1, apr_socket_send,,,[`$libaprpath --libs`])
-    AC_CHECK_LIB(aprutil-1, apr_base64_encode,,,[`$libaprpath --libs`])
   else
     CFLAGS="$CFLAGS -I$libaprpath/include"
     LDFLAGS="$LDFLAGS -L$libaprpath/${LIB_SUFFIX}"
@@ -493,34 +494,31 @@ if test x"$libaprpath" != x && test x"$libaprpath" != xyes; then
     echo "Added -L$libaprpath/${LIB_SUFFIX} to LDFLAGS"
     AC_CHECK_LIB(apr-1, apr_socket_send)
   fi
-else
-  AC_PATH_PROG(APR_CONFIG, apr-1-config)
-  if test -z "$APR_CONFIG"; then
-    AC_MSG_ERROR(apr-1-config binary not found in path)
-  fi
-  AC_PATH_PROG(PKG_CONFIG, pkg-config)
-  if test -z "$PKG_CONFIG"; then
-    AC_MSG_ERROR(pkg-config binary not found in path)
+
+  if test x"$ac_cv_lib_apr_1_apr_socket_send" = xyes; then
+    echo "The ganglia utilities use the Apache Portable Runtime functions (http://www.apache.org/)"
+    echo "Found a suitable libapr1 library"
   else
-    APR_INCLUDES=`pkg-config apr-1 --cflags`
+    echo "libapr not found"
+    exit 1;
   fi
-  APR_INCLUDES="$APR_INCLUDES `$APR_CONFIG --includes`"
-  AC_SUBST(APR_INCLUDES)
-  APR_LIBPATH=`$APR_CONFIG --link-ld`
-  APR_LIBPATH=`expr "x$APR_LIBPATH" : '.*-L\(.*\) '`
-  if test x"$APR_LIBPATH" != x; then
-    LDFLAGS="$LDFLAGS -L$APR_LIBPATH"
-  fi
-  AC_CHECK_LIB(apr-1, apr_socket_send,,,[`$APR_CONFIG --libs`])
-  AC_CHECK_LIB(aprutil-1, apr_base64_encode,,,[`$libaprpath --libs`])
+else
+  PKG_CHECK_MODULES([APR],[apr-1])
+  LDFLAGS="$LIBS $APR_LIBS"
+  APR_INCLUDES="$APR_CFLAGS"
 fi
 
-if test x"$ac_cv_lib_apr_1_apr_socket_send" = xyes && test x"$ac_cv_lib_aprutil_1_apr_base64_encode" = xyes; then
-  echo "The ganglia utilities use the Apache Portable Runtime functions (http://www.apache.org/)"
-  echo "Found a suitable libapr1 library"
-else
-  echo "libapr not found"
-  exit;
+echo
+echo Checking for libmemcached
+AC_ARG_WITH( memcached,
+[  --with-memcached        enable memcached metrics publishing],
+if test x"$withval" = xyes; then memcache="yes"; fi)
+
+if test x"$memcache" == xyes; then
+  PKG_CHECK_MODULES(DEPS, libmemcached >= 0.8.0)
+  AC_SUBST(DEPS_CFLAGS)
+  AC_SUBST(DEPS_LIBS)
+  CFLAGS="$CFLAGS -DWITH_MEMCACHED"
 fi
 
 echo
@@ -544,7 +542,7 @@ if test x"$ac_cv_lib_confuse_cfg_parse" = xno; then
     AC_CHECK_LIB(confuse, cfg_parse)
     if test x"$ac_cv_lib_confuse_cfg_parse" = xno; then
       echo "libconfuse not found"
-      exit
+      exit 1
     fi
   fi
 fi
@@ -565,7 +563,7 @@ if test x"$ac_cv_lib_expat_XML_ParserCreate" = xyes; then
   echo "Found a suitable Expat library"
 else
   echo "libexpat not found"
-  exit;
+  exit 1;
 fi
 
 echo
@@ -583,32 +581,46 @@ if test x"$libpcre" == xyes ; then
     echo "Found a suitable pcre library"
   else
     echo "libpcre not found, specify --with-libpcre=no to build without PCRE support"
-    exit;
+    exit 1;
   fi
 else
   echo "building without PCRE support"
 fi
+echo
 
 echo
-echo Checking for cURL
-if test x"$libcurlpath" != x && test x"$libcurlpath" != xyes; then
-  CFLAGS="$CFLAGS -I$libcurlpath/include"
-  LDFLAGS="$LDFLAGS -L$libcurlpath/${LIB_SUFFIX}"
-  echo "Added -I$libcurlpath/include to CFLAGS"
-  echo "Added -L$libcurlpath/${LIB_SUFFIX} to LDFLAGS"
-fi
-if test x"$libcurl" == xyes ; then
-  AC_CHECK_LIB(curl, curl_global_init)
-  if test x"$ac_cv_lib_curl_curl_global_init" = xyes; then
-    echo "Found a suitable curl library"
-  else
-    echo "libcurl not found, specify --with-libcurl=no to build without cURL support"
-    exit;
-  fi
+echo Checking for systemd
+AC_ARG_WITH([systemdsystemunitdir],
+  AS_HELP_STRING([--with-systemdsystemunitdir=DIR], [Directory for systemd service files]),
+  [], [with_systemdsystemunitdir=$($PKG_CONFIG --variable=systemdsystemunitdir systemd)])
+if test "x$with_systemdsystemunitdir" != xno; then
+  AC_SUBST([systemdsystemunitdir], [$with_systemdsystemunitdir])
 else
-  echo "building without cURL support"
+  AC_SUBST([systemdsystemunitdir], [/usr/lib/systemd/system])
 fi
+AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
+
 echo
+echo Checking for zlib
+AC_ARG_WITH([zlib],
+  AS_HELP_STRING([--with-zlib=DIR], [Specify location for zlib]),
+  [if test x"$withval" != xno; then libzlib="yes"; libzlibpath="$withval"; fi])
+if test x"$libzlibpath" != x && test x"$libzlibpath" != xyes; then
+  CFLAGS="$CFLAGS -I$libzlibpath/include"
+  CPPFLAGS="$CPPFLAGS -I$libzlibpath/include"
+  LDFLAGS="$LDFLAGS -L$libzlibpath/${LIB_SUFFIX}"
+  echo "Added -I$libzlibpath/include to CFLAGS and CPPFLAGS"
+  echo "Added -L$libzlibpath/${LIB_SUFFIX} to LDFLAGS"
+fi
+AC_CHECK_HEADERS([zlib.h])
+AC_CHECK_LIB(z, deflate)
+if test x"$ac_cv_lib_z_deflate" != xyes; then
+  echo "zlib library not configured properly"; exit 1;
+fi
+echo "Found a suitable zlib"
+
+echo
+
 
 AC_CHECK_LIB(rpc, xdr_string)
 AC_CHECK_LIB(socket, socket)
@@ -625,7 +637,7 @@ dnl AC_CHECK_LIB(crypto, RSA_sign)
 dnl if test "$ac_cv_lib_crypto_RSA_sign" = no; then
 dnl    echo "$PACKAGE $VERSION requires IPv4 OpenSSL."
 dnl    echo "See http://www.openssl.org/."
-dnl    exit;
+dnl    exit 1;
 dnl fi
 
 dnl ##################################################################
@@ -683,7 +695,7 @@ dnl AC_CHECK_SIZEOF(void *)
 
 dnl ##################################################################
 dnl Check for structure definitions.
-dnl   
+dnl
 
 dnl ##################################################################
 dnl Check the compiler characteristics
@@ -788,7 +800,7 @@ dnl
 		   fi
 		fi
 		;;
-*ia64-*hpux*)	CFLAGS="$CFLAGS -D_PSTAT64 -D_HPUX_SOURCE" 
+*ia64-*hpux*)	CFLAGS="$CFLAGS -D_PSTAT64 -D_HPUX_SOURCE"
 		LIBS="-lpthread $LIBS"
 		EXPORT_SYMBOLS="-Wl,-E"
 		AC_DEFINE(SUPPORT_GEXEC, 0, SUPPORT_GEXEC)
@@ -799,7 +811,7 @@ dnl
 		EXPORT_SYMBOLS="-Wl,-bexpfull"
 		AC_DEFINE(SUPPORT_GEXEC, 0, SUPPORT_GEXEC)
 		if test x"$ac_cv_lib_perfstat_perfstat_cpu_total" = xyes; then
-		   CFLAGS="$CFLAGS -DHAVE_PERFSTAT" 
+		   CFLAGS="$CFLAGS -DHAVE_PERFSTAT"
 		else
 		   echo "libperfstat not detected."
 		   echo "For AIX 5 you need to install bos.perf.libperfstat"
@@ -808,7 +820,7 @@ dnl
 		LIBS="-lm $LIBS"
 		EXPORT_SYMBOLS_DYNAMIC="-Wl,-bexpfull"
 		;;
-*hpux*)		CFLAGS="$CFLAGS -D_HPUX_SOURCE" 
+*hpux*)		CFLAGS="$CFLAGS -D_HPUX_SOURCE"
 		LIBS="-lpthread $LIBS"
 		EXPORT_SYMBOLS="-Wl,-E"
 		AC_DEFINE(SUPPORT_GEXEC, 0, SUPPORT_GEXEC)
@@ -818,8 +830,8 @@ dnl
 		CFLAGS="$CFLAGS -D_IRIX_SOURCE"
 		AC_DEFINE(IRIX,1,IRIX)
 		;;
-*osf*)		metric_source="osf.c"	
-		CFLAGS="$CFLAGS -D_SOCKADDR_LEN" 
+*osf*)		metric_source="osf.c"
+		CFLAGS="$CFLAGS -D_SOCKADDR_LEN"
 		AC_DEFINE(OSF,1,OSF)
 		;;
 *darwin*) 	AC_DEFINE(DARWIN,1,DARWIN)
@@ -834,10 +846,10 @@ dnl
 		fi
 		if test x"$ac_cv_prog_gcc" != xyes; then
 		   LIBS="-lm $LIBS"
-		fi 
+		fi
 		AC_DEFINE(SOLARIS,1,SOLARIS)
 		;;
-*freebsd*)	CFLAGS="-pthread $CFLAGS -D_REENTRANT" 
+*freebsd*)	CFLAGS="-pthread $CFLAGS -D_REENTRANT"
 		AC_DEFINE(SUPPORT_GEXEC, 0, SUPPORT_GEXEC)
 		varstatedir="/var/db"
 		osreldate=`awk '/^\#define[[:space:]]*__FreeBSD_version/ { print $3 }' /usr/include/osreldate.h`
@@ -845,7 +857,7 @@ dnl
 		   CFLAGS="-pthread $CFLAGS -D_REENTRANT"
 		fi
 		AC_DEFINE(FREEBSD, 1, FREEBSD)
-		;; 
+		;;
 *dragonfly*)	CFLAGS="-pthread $CFLAGS -D_REENTRANT"
 		AC_DEFINE(SUPPORT_GEXEC, 0, SUPPORT_GEXEC)
 		varstatedir="/var/db"
@@ -854,7 +866,7 @@ dnl
 *netbsd*)	AC_DEFINE(SUPPORT_GEXEC, 0, SUPPORT_GEXEC)
 		varstatedir="/var/db"
 		AC_DEFINE(NETBSD, 1, NETBSD)
-		;; 
+		;;
 *openbsd*)	AC_DEFINE(SUPPORT_GEXEC, 0, SUPPORT_GEXEC)
 		varstatedir="/var/db"
 		AC_DEFINE(OPENBSD, 1, OPENBSD)
@@ -888,45 +900,8 @@ fi
 AC_DEFINE_UNQUOTED(GANGLIA_MODULE_DIR, "$moduledir", GANGLIA_MODULE_DIR)
 AC_SUBST(moduledir)
 
-case $GANGLIA_VERSION in
-3\.1\.*)
-  echo "Extra checks for 3.1 series..."
-  if test "$sysconfdir" = '${prefix}/etc' && test ! "x$GANGLIA_ACK_SYSCONFDIR" = x1 ;
-  then
-    echo "sysconfdir appears to be the default value"
-    echo "Prior to release 3.1.3, Ganglia ignored the value of sysconfdir"
-    echo "passed to configure and would always use /etc/ganglia"
-    echo "This is considered a bug because the help text from configure"
-    echo "informs the user that the default location is PREFIX/etc"
-    echo "If you wish to continue using /etc/ganglia for gmond.conf and"
-    echo "other configuration files, you must now explicitly specify"
-    echo ""
-    echo "  --sysconfdir=/etc/ganglia"
-    echo ""
-    echo "If you want to use configure's default value, PREFIX/etc, you"
-    echo "must use the environment variable GANGLIA_ACK_SYSCONFDIR=1:"
-    echo ""
-    echo "  GANGLIA_ACK_SYSCONFDIR=1 ./configure ..."
-    echo ""
-    echo "otherwise you will see this error message."
-    echo ""
-    echo "When Ganglia 3.2 is released:"
-    echo " - sysconfdir will use configure's default value, unless specified"
-    echo " - GANGLIA_ACK_SYSCONFDIR will not be required"
-    echo " - this error will no longer be displayed"
-    echo ""
-    echo "*** configure has failed ***"
-    echo " - please invoke configure again using one of"
-    echo "   the methods described for determining sysconfdir"
-    exit 1
-  fi
-  ;;
-*)
-  ;;
-esac
-
 dnl This is for gmetad-python, where @gsysconfdir@ needs to be
-dnl substituted into setup.py during the ./configure step as there is no 
+dnl substituted into setup.py during the ./configure step as there is no
 dnl make install step
 dnl
 if test x"$sysconfdir" = x"\${prefix}/etc"; then
@@ -942,14 +917,14 @@ AC_SUBST(gsysconfdir)
 
 AC_CONFIG_FILES([scripts/fixconfig], [chmod +x scripts/fixconfig])
 
-AC_OUTPUT(Makefile 
-          tests/Makefile 
-          ganglia.spec 
-          gmetad/Makefile 
+AC_OUTPUT(Makefile
+          tests/Makefile
+          ganglia.spec
+          gmetad/Makefile
           lib/default_conf.h
-          lib/Makefile 
-          gmond/Makefile 
-          gstat/Makefile 
+          lib/Makefile
+          gmond/Makefile
+          gstat/Makefile
           gmond/modules/Makefile
           gmond/modules/example/Makefile
           gmond/modules/cpu/Makefile
