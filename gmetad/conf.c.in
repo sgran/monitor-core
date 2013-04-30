@@ -313,7 +313,7 @@ static DOTCONF_CB(cb_graphite_path)
 static DOTCONF_CB(cb_riemann_server)
 {
    gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
-   debug_msg("Enabling Graphite proxy to %s", cmd->data.str);
+   debug_msg("Enabling Riemann forwarding to %s", cmd->data.str);
    c->riemann_server = strdup (cmd->data.str);
    return NULL;
 }
@@ -321,7 +321,7 @@ static DOTCONF_CB(cb_riemann_server)
 static DOTCONF_CB(cb_riemann_port)
 {
    gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
-   debug_msg("Setting riemann port to %ld", cmd->data.value);
+   debug_msg("Setting Riemann port to %ld", cmd->data.value);
    c->riemann_port = cmd->data.value;
    return NULL;
 }
@@ -329,7 +329,7 @@ static DOTCONF_CB(cb_riemann_port)
 static DOTCONF_CB(cb_riemann_protocol)
 {
    gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
-   debug_msg("Setting riemann protocol to %s", cmd->data.str);
+   debug_msg("Setting Riemann protocol to %s", cmd->data.str);
    c->riemann_protocol = strdup (cmd->data.str);
    return NULL;
 }
