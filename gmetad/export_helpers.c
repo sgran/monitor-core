@@ -22,6 +22,11 @@
 #include <libmemcachedutil-1.0/util.h>
 #endif /* WITH_MEMCACHED */
 
+#ifdef WITH_RIEMANN
+#include <riemann/event.h>
+#include <riemann/message.h>
+#endif /* WITH_RIEMANN */
+
 #include "export_helpers.h"
 
 #define PATHSIZE 4096
@@ -343,3 +348,67 @@ write_data_to_carbon ( const char *source, const char *host, const char *metric,
 	graphite_msg[strlen(graphite_msg)+1] = 0;
    return push_data_to_carbon( graphite_msg );
 }
+
+#ifdef WITH_RIEMANN
+int
+send_data_to_riemann (const char *grid, const char *cluster, const char *host, const char *metric, const char *value,
+                      const char *state, unsigned int localtime, const char *tags, const char *description, unsigned int ttl)
+{
+   riemann_message_t msg = RIEMANN_MSG_INIT;
+   riemann_message_t *resp = NULL;
+   riemann_event_t **events;
+
+   int error;
+
+   events = riemann_event_alloc_events(1);
+   events[0] = riemann_event_alloc_event();
+   riemann_event_init(events[0]);
+
+   riemann_event_set_host(events[0], host);
+   riemann_event_set_service(events[0], metric);
+
+   if (value)
+      riemann_event_set_metric_d(events[0], value);
+   if (state)
+      riemann_event_set_state(events[0], state);
+
+   if (localtime)
+      riemann_event_set_time(events[0], localtime);
+
+   /* riemann_event_set_tags(events[0], tags, STATIC_ARRAY_SIZE(tags)); */
+
+   if (description)
+      riemann_event_set_description(events[0], description);
+
+   riemann_event_set_ttl(events[0], ttl);
+
+   /* static const riemann_attribute_pairs_t attrs[] = {
+        { "key0", "value0" },
+        { "key1", "value1" },
+   }; */
+   /* riemann_event_set_attributes(events[i], attrs, STATIC_ARRAY_SIZE(attrs)); */
+
+   riemann_message_set_events(&msg, events, 1);
+
+   error = riemann_client_send_message(&riemann_cli, &msg, 0, NULL);
+
+   if (error)
+      debug_msg("Can't send message: %s", strerror(errno));
+
+   resp = riemann_client_recv_message(&riemann_cli, 0, NULL);
+   riemann_events_free(events, 1);
+
+   if (!resp)
+     {
+         debug_msg("riemann_client_recv_message() got no response\n");
+         return EXIT_FAILURE;
+     }
+   if (!resp->ok)
+     {
+         debug_msg("riemann message error: %s\n", resp->error);
+         return EXIT_FAILURE;
+     }
+   return EXIT_SUCCESS;
+
+}
+#endif /* WITH_RIEMANN */

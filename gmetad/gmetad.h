@@ -19,6 +19,10 @@
 #include <libmemcachedutil-1.0/util.h>
 #endif /* WITH_MEMCACHED */
 
+#ifdef WITH_RIEMANN
+#include <riemann/client.h>
+#endif /* WITH_RIEMANN */
+
 /* For metric_hash */
 typedef enum {
    INT,
@@ -250,5 +254,9 @@ Metric_t;
 #ifdef WITH_MEMCACHED
 memcached_pool_st* memcached_connection_pool;
 #endif /* WITH_MEMCACHED */
+
+#ifdef WITH_RIEMANN
+riemann_client_t riemann_cli;
+#endif /* WITH_RIEMANN */
 
 #endif

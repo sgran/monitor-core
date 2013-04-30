@@ -310,6 +310,30 @@ static DOTCONF_CB(cb_graphite_path)
 	return NULL;
 } 
 
+static DOTCONF_CB(cb_riemann_server)
+{
+   gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+   debug_msg("Enabling Graphite proxy to %s", cmd->data.str);
+   c->riemann_server = strdup (cmd->data.str);
+   return NULL;
+}
+
+static DOTCONF_CB(cb_riemann_port)
+{
+   gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+   debug_msg("Setting riemann port to %ld", cmd->data.value);
+   c->riemann_port = cmd->data.value;
+   return NULL;
+}
+
+static DOTCONF_CB(cb_riemann_protocol)
+{
+   gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+   debug_msg("Setting riemann protocol to %s", cmd->data.str);
+   c->riemann_protocol = strdup (cmd->data.str);
+   return NULL;
+}
+
 static DOTCONF_CB(cb_unsummarized_metrics)
 {
    int i;
@@ -358,6 +382,9 @@ static configoption_t gmetad_options[] =
       {"memcached_parameters", ARG_STR, cb_memcached_parameters, &gmetad_config, 0},
       {"graphite_prefix", ARG_STR, cb_graphite_prefix, &gmetad_config, 0},
       {"graphite_path", ARG_STR, cb_graphite_path, &gmetad_config, 0},
+      {"riemann_server", ARG_STR, cb_riemann_server, &gmetad_config, 0},
+      {"riemann_port", ARG_INT, cb_riemann_port, &gmetad_config, 0},
+      {"riemann_protocol", ARG_STR, cb_riemann_protocol, &gmetad_config, 0},
       {"unsummarized_metrics", ARG_LIST, cb_unsummarized_metrics, &gmetad_config, 0},
       LAST_OPTION
    };
@@ -387,6 +414,8 @@ set_defaults (gmetad_config_t *config)
    config->carbon_port = 2003;
    config->carbon_protocol = "tcp";
    config->carbon_timeout = 500;
+   config->riemann_port = 5555;
+   config->riemann_protocol = "udp";
    config->unsummarized_metrics = NULL;
 }
 
