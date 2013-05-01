@@ -389,14 +389,14 @@ char **strtoknize(const char *str, size_t slen, const char *dlmt, int dlen, int 
 
 int
 send_data_to_riemann (const char *grid, const char *cluster, const char *host, const char *metric, const char *value,
-                      const char *state, unsigned int localtime, const char *tags_str, const char *description, unsigned int ttl)
+                      const char *state, unsigned int localtime, const char *tags_str, unsigned int ttl)
 {
    riemann_message_t msg = RIEMANN_MSG_INIT;
    riemann_message_t *resp = NULL;
    riemann_event_t **events;
 
-   debug_msg("grid = %s, cluster = %s, host = %s, metric = %s, value = %s, state = %s, localtime = %d, tags = %s, description = %s, ttl = %d",
-              grid, cluster, host, metric, value, state, localtime, tags_str, description, ttl);
+   debug_msg("grid = %s, cluster = %s, host = %s, metric = %s, value = %s, state = %s, localtime = %d, tags = %s, ttl = %d",
+              grid, cluster, host, metric, value, state, localtime, tags_str, ttl);
 
    int error;
 
@@ -412,8 +412,6 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
       riemann_event_set_state(events[0], state);
    if (localtime)
       riemann_event_set_time(events[0], localtime);
-   if (description)
-      riemann_event_set_description(events[0], description);
 
    char **tags = NULL;
    int n_tags;
@@ -447,7 +445,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    riemann_message_set_events(&msg, events, 1);
 
    char buffer[BUFSIZ];
-   static char *format = "%T,%h,%s,%d,%S,%mf,%md,%mi,%t,%G,%a";
+   static char *format = "%T,%h,%s,%S,%mf,%md,%mi,%t,%G,%a";
    error = riemann_event_strfevent(buffer, BUFSIZ, format, events[0]);
    debug_msg(buffer);
 
@@ -476,7 +474,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
        for (int i = 0; i < resp->n_events; i++)
          {
            char buffer[BUFSIZ];
-           static char *format = "%T,%h,%s,%d,%S,%mf,%md,%mi,%t,%G,%a";
+           static char *format = "%T,%h,%s,%S,%mf,%md,%mi,%t,%G,%a";
            error = riemann_event_strfevent(buffer, BUFSIZ, format, resp->events[i]);
            if (error)
              {

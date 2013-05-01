@@ -35,7 +35,6 @@ send_data_to_riemann (const char *grid,          /* grid        => grid */
                       const char *state,         /* string      => state */
                       unsigned int localtime,    /* localtime   => time */
                       const char *tags,          /* tags        => tags */
-                      const char *description,   /* description => description */
                       unsigned int ttl           /* dmax        => ttl */
                       );
 #endif /* WITH_RIEMANN */

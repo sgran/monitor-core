@@ -651,11 +651,13 @@ startElement_METRIC(void *data, const char *el, const char **attr)
             debug_msg("tags ... %s", tags);
 
             if (do_summary)
-               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname, name, metricval,
-                                                  NULL, xmldata->source.localtime, tags, NULL, metric->tmax);  /* int or float => metric */
+               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
+                                              xmldata->hostname, name, metricval, NULL,       /* int or float => metric */
+                                              xmldata->source.localtime, tags, metric->tmax);
             else
-               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname, name, NULL,
-                                                  metricval, xmldata->source.localtime, tags, NULL, metric->tmax);    /* string => state */
+               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
+                                              xmldata->hostname, name, NULL, metricval,       /* string => state */
+                                              xmldata->source.localtime, tags, metric->tmax);
             if (!rm_ret)
                 err_msg("Could not send metric %s to Riemann", name);
         }
