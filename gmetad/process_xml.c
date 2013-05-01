@@ -642,11 +642,12 @@ startElement_METRIC(void *data, const char *el, const char **attr)
 #ifdef WITH_RIEMANN
          /* Forward all metrics, including strings, to Riemann */
         if (gmetad_config.riemann_server) {
+            int rm_ret = 0;
             if (do_summary)
-               int rm_ret = send_data_to_riemann (NULL, xmldata->sourcename, xmldata->hostname, name, metricval,
+               rm_ret = send_data_to_riemann (NULL, xmldata->sourcename, xmldata->hostname, name, metricval,
                                                   NULL, xmldata->source.localtime, NULL, NULL, metric->dmax);
             else
-               int rm_ret = send_data_to_riemann (NULL, xmldata->sourcename, xmldata->hostname, name, NULL,
+               rm_ret = send_data_to_riemann (NULL, xmldata->sourcename, xmldata->hostname, name, NULL,
                                                   metricval, xmldata->source.localtime, NULL, NULL, metric->dmax);
             if (!rm_ret)
                 err_msg("Could not send metric %s to Riemann", name);

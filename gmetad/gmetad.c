@@ -446,9 +446,9 @@ main ( int argc, char *argv[] )
         int error = 0;
         if (!strcmp(c->riemann_protocol, "tcp"))
           {
-            error = riemann_client_connect(&riemann_client, RIEMANN_TCP, c->riemann_server, c->riemann_port);
+            error = riemann_client_connect(&riemann_cli, RIEMANN_TCP, c->riemann_server, c->riemann_port);
           } else {
-            error = riemann_client_connect(&riemann_client, RIEMANN_UDP, c->riemann_server, c->riemann_port);
+            error = riemann_client_connect(&riemann_cli, RIEMANN_UDP, c->riemann_server, c->riemann_port);
           }
         if (error)
           err_quit("failed to connect to riemann server %s:%d: %s", c->riemann_server, c->riemann_port, strerror(errno));

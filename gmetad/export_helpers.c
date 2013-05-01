@@ -372,7 +372,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    riemann_event_set_service(events[0], metric);
 
    if (value)
-      riemann_event_set_metric_d(events[0], value);
+      riemann_event_set_metric_d(events[0], (double) strtod(value, (char**) NULL));
    if (state)
       riemann_event_set_state(events[0], state);
 

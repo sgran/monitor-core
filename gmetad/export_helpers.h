@@ -37,5 +37,5 @@ send_data_to_riemann (const char *grid,          /* grid        => grid */
                       const char *tags,          /* tags        => tags */
                       const char *description,   /* description => description */
                       unsigned int ttl           /* dmax        => ttl */
-                      )
+                      );
 #endif /* WITH_RIEMANN */
