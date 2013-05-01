@@ -644,11 +644,11 @@ startElement_METRIC(void *data, const char *el, const char **attr)
         if (gmetad_config.riemann_server) {
             int rm_ret = 0;
             if (do_summary)
-               rm_ret = send_data_to_riemann (NULL, xmldata->sourcename, xmldata->hostname, name, metricval,
-                                                  NULL, xmldata->source.localtime, NULL, NULL, metric->dmax);
+               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname, name, metricval,
+                                                  NULL, xmldata->source.localtime, NULL, NULL, metric->tmax);  /* int or float => metric */
             else
-               rm_ret = send_data_to_riemann (NULL, xmldata->sourcename, xmldata->hostname, name, NULL,
-                                                  metricval, xmldata->source.localtime, NULL, NULL, metric->dmax);
+               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname, name, NULL,
+                                                  metricval, xmldata->source.localtime, NULL, NULL, metric->tmax);    /* string => state */
             if (!rm_ret)
                 err_msg("Could not send metric %s to Riemann", name);
         }

@@ -354,13 +354,19 @@ write_data_to_carbon ( const char *source, const char *host, const char *metric,
 }
 
 #ifdef WITH_RIEMANN
+
+#define STATIC_ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+
 int
 send_data_to_riemann (const char *grid, const char *cluster, const char *host, const char *metric, const char *value,
-                      const char *state, unsigned int localtime, const char *tags, const char *description, unsigned int ttl)
+                      const char *state, unsigned int localtime, const char *tags_str, const char *description, unsigned int ttl)
 {
    riemann_message_t msg = RIEMANN_MSG_INIT;
    riemann_message_t *resp = NULL;
    riemann_event_t **events;
+
+   debug_msg("grid = %s, cluster = %s, host = %s, metric = %s, value = %s, state = %s, localtime = %d, tags = %s, description = %s, ttl = %d",
+              grid, cluster, host, metric, value, state, localtime, tags_str, description, ttl);
 
    int error;
 
@@ -379,18 +385,28 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    if (localtime)
       riemann_event_set_time(events[0], localtime);
 
-   /* riemann_event_set_tags(events[0], tags, STATIC_ARRAY_SIZE(tags)); */
+/*
+   char cluster_tag[128];
+   sprintf(cluster_tag, "cluster:%s", cluster);
+
+   const char *tags[] = {
+        cluster_tag,
+   };
+   riemann_event_set_tags(events[0], tags, STATIC_ARRAY_SIZE(tags));
+*/
 
    if (description)
       riemann_event_set_description(events[0], description);
 
    riemann_event_set_ttl(events[0], ttl);
 
-   /* static const riemann_attribute_pairs_t attrs[] = {
-        { "key0", "value0" },
-        { "key1", "value1" },
-   }; */
-   /* riemann_event_set_attributes(events[i], attrs, STATIC_ARRAY_SIZE(attrs)); */
+   const riemann_attribute_pairs_t attrs[] = {
+        { "grid", grid },
+        { "cluster", cluster },
+     /*   { "environment", environment }, */
+        { "resource", host },
+   };
+   riemann_event_set_attributes(events[0], attrs, STATIC_ARRAY_SIZE(attrs));
 
    riemann_message_set_events(&msg, events, 1);
 
@@ -401,18 +417,22 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    if (error)
       debug_msg("Can't send message: %s", strerror(errno));
 
-   resp = riemann_client_recv_message(&riemann_cli, 0, NULL);
    riemann_events_free(events, 1);
 
-   if (!resp)
+   debug_msg("riemann_protocol = %s", gmetad_config.riemann_protocol);
+   if (!strcmp(gmetad_config.riemann_protocol, "tcp"))
      {
-         debug_msg("riemann_client_recv_message() got no response\n");
-         return EXIT_FAILURE;
-     }
-   if (!resp->ok)
-     {
-         debug_msg("riemann message error: %s\n", resp->error);
-         return EXIT_FAILURE;
+       resp = riemann_client_recv_message(&riemann_cli, 0, NULL);
+       if (!resp)
+         {
+           debug_msg("riemann_client_recv_message() got no response\n");
+           return EXIT_FAILURE;
+         }
+       if (!resp->ok)
+         {
+           debug_msg("riemann message error: %s\n", resp->error);
+           return EXIT_FAILURE;
+         }
      }
    return EXIT_SUCCESS;
 
