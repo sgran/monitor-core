@@ -517,6 +517,20 @@ if test x"$memcache" == xyes; then
 fi
 
 echo
+echo Checking for libriemann_c_client
+AC_ARG_WITH( riemann,
+[  --with-riemann        enable riemann metrics publishing],
+if test x"$withval" = xyes; then riemann="yes"; fi)
+
+if test x"$riemann" == xyes; then
+  AC_CHECK_LIB(riemann_c_client, riemann_client_send_message)
+  if test x"$ac_cv_lib_riemann_c_client_riemann_client_send_message" != xno; then
+    CFLAGS="$CFLAGS -DWITH_RIEMANN"
+    LDFLAGS="$LDFLAGS -lriemann_c_client"
+  fi
+fi
+
+echo
 echo Checking for confuse
 if test x"$libconfusepath" != x && test x"$libconfusepath" != xyes; then
   CFLAGS="$CFLAGS -I$libconfusepath/include"
