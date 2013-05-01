@@ -458,7 +458,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 
    if (!strcmp(gmetad_config.riemann_protocol, "tcp"))
      {
-       resp = riemann_client_recv_message(&riemann_cli, MSG_WAITALL, NULL);
+       resp = riemann_client_recv_message(&riemann_cli, 0, NULL);
        if (!resp)
          {
            err_msg("riemann_client_recv_message() got no response\n");
