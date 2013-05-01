@@ -200,3 +200,6 @@ case_sensitive_hostnames 0
 # default: udp
 # riemann_protocol tcp
 #
+# List of arbitrary key-value pairs to be used as event attributes
+# default: undefined
+# riemann_attributes "key=val[,...]"

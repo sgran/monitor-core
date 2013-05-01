@@ -33,6 +33,7 @@ typedef struct
       char *riemann_server;
       int riemann_port;
       char *riemann_protocol;
+      char *riemann_attributes;
       int case_sensitive_hostnames;
       int shortest_step;
 } gmetad_config_t;

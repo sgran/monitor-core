@@ -357,6 +357,38 @@ write_data_to_carbon ( const char *source, const char *host, const char *metric,
 
 #define STATIC_ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
+char **strtoknize(const char *str, size_t slen, const char *dlmt, int dlen, int  *n_toks)
+{
+        char *toks = alloca(slen);
+        char *save_ptr = NULL;
+        char *ptr = NULL;
+        int i;
+        char **buffer = NULL;
+
+        strncpy(toks, str, slen);
+
+        if (!strcmp(&toks[slen - dlen], dlmt)) { /* remove trailing delimiters */
+                toks[slen - dlen] = '\0';
+        }
+
+        i = 0;
+        ptr = strtok_r(toks, dlmt, &save_ptr);
+        while (ptr) {
+                i++;
+                buffer = realloc(buffer, sizeof (char **) * i);
+                assert(buffer);
+                buffer[i - 1] = strdup(ptr);
+                assert(buffer[i - 1]);
+                ptr = strtok_r(NULL, dlmt, &save_ptr);
+        }
+
+        if (n_toks)
+                *n_toks = i;
+
+        return buffer;
+}
+
+
 int
 send_data_to_riemann (const char *grid, const char *cluster, const char *host, const char *metric, const char *value,
                       const char *state, unsigned int localtime, const char *tags_str, const char *description, unsigned int ttl)
@@ -376,38 +408,80 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 
    riemann_event_set_host(events[0], host);
    riemann_event_set_service(events[0], metric);
-
    if (value)
       riemann_event_set_metric_d(events[0], (double) strtod(value, (char**) NULL));
    if (state)
       riemann_event_set_state(events[0], state);
-
    if (localtime)
       riemann_event_set_time(events[0], localtime);
-
-/*
-   char cluster_tag[128];
-   sprintf(cluster_tag, "cluster:%s", cluster);
-
-   const char *tags[] = {
-        cluster_tag,
-   };
-   riemann_event_set_tags(events[0], tags, STATIC_ARRAY_SIZE(tags));
-*/
-
    if (description)
       riemann_event_set_description(events[0], description);
 
-   riemann_event_set_ttl(events[0], ttl);
+   debug_msg("tags = %s", tags_str);
 
+   char **tags = NULL;
+/*
+   char *dup = strdup(tags_str);
+   char *last = strtok(dup, " ,");
+   char *last = strtok(tags_str, ",");
+
+   int i = 0;
+   while (last) {
+     i++;
+     debug_msg("tag%d = %s", i, last); 
+     tags = realloc(tags, sizeof (char **) * i);
+     tags[i - 1] = strdup(last);
+     last = strtok(NULL, ",");
+     debug_msg("tag%d = %s", i, tags[i]); 
+   }
+   debug_msg("marshalled %d tags", i);
+   debug_msg("tags => %s", tags[1]);
+   riemann_event_set_tags(events[0], (char **) tags, i - 1);
+*/
+   int n_tags;
+   tags = strtoknize(tags_str, strlen(tags_str) + 1, ",", 1, &n_tags);
+   riemann_event_set_tags(events[0], (const char **)tags, n_tags);
+
+/*
    const riemann_attribute_pairs_t attrs[] = {
         { "grid", grid },
         { "cluster", cluster },
-     /*   { "environment", environment }, */
+        { "environment", environment },
         { "resource", host },
    };
    riemann_event_set_attributes(events[0], attrs, STATIC_ARRAY_SIZE(attrs));
+*/
+/*
+   riemann_attribute_pairs_t pairs[] = {
+     { "grid", grid },
+     { "cluster", cluster },
+     { "resource", resource }
+   };
+*/
+        // { "environment", environment },
 
+   riemann_attribute_pairs_t *pairs = NULL;
+   int n_attrs;
+
+   do {
+       char **attrs = NULL;
+       char **pair = NULL;
+       int i;
+
+       attrs = strtoknize(gmetad_config.riemann_attributes, strlen(gmetad_config.riemann_attributes) + 1, ",", 1, &n_attrs);
+       pairs = malloc(sizeof (riemann_attribute_pairs_t) * n_attrs);
+       for (i = 0; i < n_attrs; i++) {
+           pair = strtoknize(attrs[i], strlen(attrs[i]) + 1, "=", 1, NULL);
+           pairs[i].key = strdup(pair[0]);
+           pairs[i].value = strdup(pair[1]);
+           free(pair[0]);
+           free(pair[1]);
+           free(pair);
+       }
+   } while (0);
+   riemann_event_set_attributes(events[0], pairs, n_attrs);
+
+   riemann_event_set_ttl(events[0], ttl);
    riemann_message_set_events(&msg, events, 1);
 
    pthread_mutex_lock( &riemann_mutex );
