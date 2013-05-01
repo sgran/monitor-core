@@ -35,6 +35,10 @@ extern gmetad_config_t gmetad_config;
 g_udp_socket *carbon_udp_socket;
 pthread_mutex_t  carbon_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+#ifdef WITH_RIEMANN
+pthread_mutex_t  riemann_mutex = PTHREAD_MUTEX_INITIALIZER;
+#endif /* WITH_RIEMANN */
+
 g_udp_socket*
 init_carbon_udp_socket (const char *hostname, uint16_t port)
 {
@@ -390,7 +394,9 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 
    riemann_message_set_events(&msg, events, 1);
 
+   pthread_mutex_lock( &riemann_mutex );
    error = riemann_client_send_message(&riemann_cli, &msg, 0, NULL);
+   pthread_mutex_unlock( &riemann_mutex );
 
    if (error)
       debug_msg("Can't send message: %s", strerror(errno));
