@@ -525,21 +525,23 @@ startElement_HOST(void *data, const char *el, const char **attr)
    host->stringslen = edge;
 
 #ifdef WITH_RIEMANN
-         /* Forward heartbeat metric to Riemann */
+
+        /* Forward heartbeat metric to Riemann */
         if (gmetad_config.riemann_server) {
 
-            int rm_ret = 0;
-
+            char value[12];
             char *tags = getfield(host->strings, host->tags);
-            debug_msg("tags ... %s", tags);
+            sprintf(value, "%d", reported);
 
+            int rm_ret = 0;
             rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
-                                          xmldata->hostname, "heartbeat", reported, NULL,
-                                          xmldata->source.localtime, tags, tmax);
+                                           xmldata->hostname, "heartbeat", value, NULL,
+                                           xmldata->source.localtime, tags, tmax);
+
             if (!rm_ret)
-                err_msg("Could not send heartbeat metric to Riemann", name);
+                err_msg("Could not send heartbeat metric to Riemann");
         }
-#endif WITH_RIEMANN
+#endif /* WITH_RIEMANN */
 
    /* Trim structure to the correct length. */
    hashval.size = sizeof(*host) - GMETAD_FRAMESIZE + host->stringslen;
@@ -678,7 +680,7 @@ startElement_METRIC(void *data, const char *el, const char **attr)
             if (!rm_ret)
                 err_msg("Could not send %s metric to Riemann", name);
         }
-#endif WITH_RIEMANN
+#endif /* WITH_RIEMANN */
 
          if (do_summary && !xmldata->ds->dead && !xmldata->rval)
             {
