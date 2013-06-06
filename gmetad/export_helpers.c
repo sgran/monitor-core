@@ -388,7 +388,7 @@ char **strtoknize(const char *str, size_t slen, const char *dlmt, int dlen, int 
 }
 
 int
-send_data_to_riemann (const char *grid, const char *cluster, const char *host, const char *metric, const char *value,
+send_data_to_riemann (const char *grid, const char *cluster, const char *host, const char *ip, const char *metric, const char *value,
                       const char *state, unsigned int localtime, const char *tags_str, unsigned int ttl)
 {
    riemann_message_t msg = RIEMANN_MSG_INIT;
@@ -424,7 +424,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
        int i;
 
        char attributes[512];
-       sprintf(attributes, "grid=%s,cluster=%s,resource=%s,%s", grid, cluster, host,
+       sprintf(attributes, "grid=%s,cluster=%s,ip=%s,%s", grid, cluster, ip,
                gmetad_config.riemann_attributes ? gmetad_config.riemann_attributes : "");
        attrs = strtoknize(attributes, strlen(attributes) + 1, ",", 1, &n_attrs);
        pairs = malloc(sizeof (riemann_attribute_pairs_t) * n_attrs);

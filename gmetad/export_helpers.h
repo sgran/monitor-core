@@ -30,6 +30,7 @@ int
 send_data_to_riemann (const char *grid,          /* grid        => grid */
                       const char *cluster,       /* cluster     => cluster */
                       const char *host,          /* host        => host */
+                      const char *ip,            /* ip          => ip */
                       const char *metric,        /* metric      => service */
                       const char *value,         /* value       => metric */
                       const char *state,         /* string      => state */
