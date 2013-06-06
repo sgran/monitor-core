@@ -212,7 +212,7 @@ Ganglia_udp_send_channels_discover(Ganglia_pool p, Ganglia_gmond_config config)
   if (chunk.memory)
     free(chunk.memory);
 
-  /* debug_msg("[discovery.%s] API response %s", discovery_type, response); */
+  debug_msg("[discovery.%s] EC2 API response: %s", discovery_type, response);
 
   /* Parse XML response */
   apr_xml_doc *doc;
