@@ -533,13 +533,15 @@ startElement_HOST(void *data, const char *el, const char **attr)
             char *tags = getfield(host->strings, host->tags);
             sprintf(value, "%d", reported);
 
+            debug_msg("[riemann] Sending host %s, metric heartbeat", xmldata->hostname);
+
             int rm_ret = 0;
             rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
                                            xmldata->hostname, "heartbeat", value, NULL,
                                            xmldata->source.localtime, tags, tmax);
 
-            if (!rm_ret)
-                err_msg("Could not send heartbeat metric to Riemann");
+            if (rm_ret)
+                err_msg("[riemann] Could not send heartbeat metric to Riemann");
         }
 #endif /* WITH_RIEMANN */
 
@@ -666,9 +668,9 @@ startElement_METRIC(void *data, const char *el, const char **attr)
             host = &(xmldata->host);
             int rm_ret = 0;
 
-            char *tags = getfield(host->strings, host->tags);
-            debug_msg("tags ... %s", tags);
+            debug_msg("[riemann] Sending host %s, metric %s", xmldata->hostname, name);
 
+            char *tags = getfield(host->strings, host->tags);
             if (do_summary)
                rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
                                               xmldata->hostname, name, metricval, NULL,       /* int or float => metric */
@@ -677,8 +679,8 @@ startElement_METRIC(void *data, const char *el, const char **attr)
                rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
                                               xmldata->hostname, name, NULL, metricval,       /* string => state */
                                               xmldata->source.localtime, tags, metric->tmax);
-            if (!rm_ret)
-                err_msg("Could not send %s metric to Riemann", name);
+            if (rm_ret)
+                err_msg("[riemann] Could not send %s metric to Riemann", name);
         }
 #endif /* WITH_RIEMANN */
 

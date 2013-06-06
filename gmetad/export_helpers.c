@@ -395,9 +395,6 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    riemann_message_t *resp = NULL;
    riemann_event_t **events;
 
-   debug_msg("grid = %s, cluster = %s, host = %s, metric = %s, value = %s, state = %s, localtime = %d, tags = %s, ttl = %d",
-              grid, cluster, host, metric, value, state, localtime, tags_str, ttl);
-
    int error;
 
    events = riemann_event_alloc_events(1);
@@ -427,7 +424,8 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
        int i;
 
        char attributes[512];
-       sprintf(attributes, "%s,grid=%s,cluster=%s,resource=%s", gmetad_config.riemann_attributes, grid, cluster, host);
+       sprintf(attributes, "grid=%s,cluster=%s,resource=%s,%s", grid, cluster, host,
+               gmetad_config.riemann_attributes ? gmetad_config.riemann_attributes : "");
        attrs = strtoknize(attributes, strlen(attributes) + 1, ",", 1, &n_attrs);
        pairs = malloc(sizeof (riemann_attribute_pairs_t) * n_attrs);
        for (i = 0; i < n_attrs; i++) {
@@ -445,7 +443,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    riemann_message_set_events(&msg, events, 1);
 
    char buffer[BUFSIZ];
-   static char *format = "%T,%h,%s,%S,%mf,%md,%mi,%t,%G,%a";
+   static char *format = "[riemann] %T host=%h,service=%s,state=%S,metric_f=%mf,metric_d=%md,metric_sint64=%mi,ttl=%t,tags=%G,attributes=%a";
    error = riemann_event_strfevent(buffer, BUFSIZ, format, events[0]);
    debug_msg(buffer);
 
@@ -453,32 +451,32 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    error = riemann_client_send_message(&riemann_cli, &msg, 0, NULL);
    pthread_mutex_unlock( &riemann_mutex );
 
-   if (error)
-      err_msg("Can't send message: %s", strerror(errno));
+   if (!strcmp(gmetad_config.riemann_protocol, "tcp") && error)
+      err_msg("[riemann] Can't send message: %s", strerror(errno));
 
    if (!strcmp(gmetad_config.riemann_protocol, "tcp"))
      {
        resp = riemann_client_recv_message(&riemann_cli, 0, NULL);
        if (!resp)
          {
-           err_msg("riemann_client_recv_message() got no response\n");
+           err_msg("[riemann] riemann_client_recv_message() got no response\n");
            riemann_events_free(events, 1);
            return EXIT_FAILURE;
          }
        if (!resp->ok)
          {
-           err_msg("riemann message error: %s\n", resp->error);
+           err_msg("[riemann] riemann message error: %s\n", resp->error);
            riemann_events_free(events, 1);
            return EXIT_FAILURE;
          }
        for (int i = 0; i < resp->n_events; i++)
          {
            char buffer[BUFSIZ];
-           static char *format = "%T,%h,%s,%S,%mf,%md,%mi,%t,%G,%a";
+           static char *format = "[riemann] %T host=%h,service=%s,state=%S,metric_f=%mf,metric_d=%md,metric_sint64=%mi,ttl=%t,tags=%G,attributes=%a";
            error = riemann_event_strfevent(buffer, BUFSIZ, format, resp->events[i]);
            if (error)
              {
-               err_msg("riemann_event_strfevent() error");
+               err_msg("[riemann] riemann_event_strfevent() error");
                return EXIT_FAILURE;
             }
             debug_msg(buffer);

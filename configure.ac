@@ -524,9 +524,12 @@ if test x"$withval" = xyes; then riemann="yes"; fi)
 
 if test x"$riemann" == xyes; then
   AC_CHECK_LIB(riemann_c_client, riemann_client_send_message)
-  if test x"$ac_cv_lib_riemann_c_client_riemann_client_send_message" != xno; then
+  if test x"$ac_cv_lib_riemann_c_client_riemann_client_send_message" = xyes; then
     CFLAGS="$CFLAGS -DWITH_RIEMANN"
     LDFLAGS="$LDFLAGS -lriemann_c_client"
+  else
+    echo "libriemann_c_client not found"
+    exit 1
   fi
 fi
 
