@@ -14,6 +14,11 @@
 #include "daemon_init.h"
 #include "my_inet_ntop.h"
 
+#ifdef WITH_MEMCACHED
+#include <libmemcached-1.0/memcached.h>
+#include <libmemcachedutil-1.0/util.h>
+#endif /* WITH_MEMCACHED */
+
 /* For metric_hash */
 typedef enum {
    INT,
@@ -163,6 +168,7 @@ typedef struct
       hash_t *authority; /* Null for a grid. */
       short int authority_ptr; /* An authority URL. */
       hash_t *metric_summary;
+      hash_t *metric_summary_pending;
       pthread_mutex_t *sum_finished; /* A lock held during summarization. */
       data_source_list_t *ds;
       uint32_t hosts_up;
@@ -240,5 +246,9 @@ Metric_t;
        RC = SYSCALL;         \
    } while (RC < 0 && errno == EINTR);
 #endif
+
+#ifdef WITH_MEMCACHED
+memcached_pool_st* memcached_connection_pool;
+#endif /* WITH_MEMCACHED */
 
 #endif

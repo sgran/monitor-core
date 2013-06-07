@@ -14,7 +14,8 @@ GIT_REPO=git@github.com:${GITHUB_PROJECT}/${GITHUB_SUBPROJECT}.git
 
 # the branch in the repository where the releases are prepared,
 # usually a release branch, possibly master for a small project
-RELEASE_BRANCH=release/3.3
+#RELEASE_BRANCH=release/3.3
+RELEASE_BRANCH=master
 
 # Should submodules be initialized?
 GIT_SUBMODULE_INIT=1
@@ -25,7 +26,7 @@ BOOTSTRAP_SCRIPT=bootstrap
 # Any arguments to pass to configure for running make dist?
 # may be necessary to ensure that optional modules are included in the dist
 # for some large packages
-DIST_CONFIGURE_ARGS=""
+DIST_CONFIGURE_ARGS="--with-perl"
 # Any arguments to pass to configure for the tarball torture test phase?
 TEST_CONFIGURE_ARGS=""
 

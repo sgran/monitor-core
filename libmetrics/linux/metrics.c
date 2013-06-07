@@ -20,19 +20,43 @@
 #include "libmetrics.h"
 /* End old ganglia 2.5.x headers */
 
+/* Needed for VLAN testing */
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <linux/if_vlan.h>
+#include <linux/sockios.h>
+
+
 #define OSNAME "Linux"
 #define OSNAME_LEN strlen(OSNAME)
 
 #define JT unsigned long long
 
+/* sanity check and range limit */
+static double sanityCheck( int line, char *file, const char *func, double v, double diff, double dt, JT a, JT b, JT c, JT d );
+
+/* Use unsigned long long for stats on systems with strtoull */
+#if HAVE_STRTOULL
+typedef unsigned long long stat_t;
+#define STAT_MAX ULLONG_MAX
+#define PRI_STAT "llu"
+#define strtostat(nptr, endptr, base) strtoull(nptr, endptr, base)
+#else
+typedef unsigned long stat_t;
+#define STAT_MAX ULONG_MAX
+#define PRI_STAT "lu"
+#define strtostat(nptr, endptr, base) strtoul(nptr, endptr, base)
+#endif
+
 /* /proc/net/dev hash table stuff */
 typedef struct net_dev_stats net_dev_stats;
 struct net_dev_stats {
   char *name;
-  unsigned long rpi;
-  unsigned long rpo;
-  unsigned long rbi;
-  unsigned long rbo;
+  stat_t rpi;
+  stat_t rpo;
+  stat_t rbi;
+  stat_t rbo;
   net_dev_stats *next;
 };
 #define NHASH 101
@@ -138,6 +162,37 @@ static net_dev_stats *hash_lookup(char *devname, size_t nlen)
   return stats;
 }
 
+
+/*
+** Helper functions for vlan interface testing
+*/
+static int is_vlan_iface(char *if_name)
+{
+   int fd,rc;
+   struct vlan_ioctl_args vlan_args;
+
+   fd = socket(PF_INET, SOCK_DGRAM, 0);
+
+   // fail if can't open the socket
+   if ( fd < 0 ) {
+      return 0;
+   };
+
+   vlan_args.cmd = GET_VLAN_VID_CMD;
+   strncpy(vlan_args.device1, if_name, sizeof(vlan_args.device1));
+   rc = ioctl(fd,SIOCGIFVLAN,&vlan_args);
+
+   close(fd);
+   if (rc < 0) {
+      return 0; // false
+   } else {
+      return 1; // vlan iface indeed
+   }
+
+};
+
+
+
 /*
  * FIXME: this routine should be rewritten to do per-interface statistics
  */
@@ -148,8 +203,8 @@ void update_ifdata ( char *caller )
    char *p;
    int i;
    static struct timeval stamp={0,0};
-   unsigned long rbi=0, rbo=0, rpi=0, rpo=0;
-   unsigned long l_bytes_in=0, l_bytes_out=0, l_pkts_in=0, l_pkts_out=0;
+   stat_t rbi=0, rbo=0, rpi=0, rpo=0;
+   stat_t l_bytes_in=0, l_bytes_out=0, l_pkts_in=0, l_pkts_out=0;
    double l_bin, l_bout, l_pin, l_pout;
    net_dev_stats *ns;
    float t;
@@ -169,6 +224,9 @@ void update_ifdata ( char *caller )
               char *src;
               size_t n = 0;
 
+              char if_name[IFNAMSIZ];
+              int vlan = 0; // vlan flag
+
               while (p != 0x00 && isblank(*p))
                  p++;
 
@@ -180,10 +238,17 @@ void update_ifdata ( char *caller )
                  }
 
               p = index(p, ':');
-
+              /* l.flis: check whether iface is vlan */
+              if (p && n < IFNAMSIZ) {
+                  strncpy(if_name,src,IFNAMSIZ);
+                  if_name[n] = '\0';
+                  vlan = is_vlan_iface(if_name);
+              };
+                 
               /* Ignore 'lo' and 'bond*' interfaces (but sanely) */
+              /* l.flis: skip vlan interfaces to avoid double counting*/
               if (p && strncmp (src, "lo", 2) &&
-                  strncmp (src, "bond", 4))
+                  strncmp (src, "bond", 4) && !vlan)
                  {
                     p++;
                     /* Check for data from the last read for this */
@@ -192,43 +257,43 @@ void update_ifdata ( char *caller )
                     if ( !ns ) return;
 
                     /* receive */
-                    rbi = strtoul(p, &p ,10);
+                    rbi = strtostat(p, &p ,10);
                     if ( rbi >= ns->rbi ) {
                        l_bytes_in += rbi - ns->rbi;
                     } else {
-                       debug_msg("update_ifdata(%s) - Overflow in rbi: %lu -> %lu",caller,ns->rbi,rbi);
-                       l_bytes_in += ULONG_MAX - ns->rbi + rbi;
+                       debug_msg("update_ifdata(%s) - Overflow in rbi: %"PRI_STAT" -> %"PRI_STAT,caller,ns->rbi,rbi);
+                       l_bytes_in += STAT_MAX - ns->rbi + rbi;
                     }
                     ns->rbi = rbi;
 
-                    rpi = strtoul(p, &p ,10);
+                    rpi = strtostat(p, &p ,10);
                     if ( rpi >= ns->rpi ) {
                        l_pkts_in += rpi - ns->rpi;
                     } else {
-                       debug_msg("updata_ifdata(%s) - Overflow in rpi: %lu -> %lu",caller,ns->rpi,rpi);
-                       l_pkts_in += ULONG_MAX - ns->rpi + rpi;
+                       debug_msg("updata_ifdata(%s) - Overflow in rpi: %"PRI_STAT" -> %"PRI_STAT,caller,ns->rpi,rpi);
+                       l_pkts_in += STAT_MAX - ns->rpi + rpi;
                     }
                     ns->rpi = rpi;
 
                     /* skip unneeded metrics */
-                    for (i = 0; i < 6; i++) rbo = strtoul(p, &p, 10);
+                    for (i = 0; i < 6; i++) rbo = strtostat(p, &p, 10);
 
                     /* transmit */
-                    rbo = strtoul(p, &p ,10);
+                    rbo = strtostat(p, &p ,10);
                     if ( rbo >= ns->rbo ) {
                        l_bytes_out += rbo - ns->rbo;
                     } else {
-                       debug_msg("update_ifdata(%s) - Overflow in rbo: %lu -> %lu",caller,ns->rbo,rbo);
-                       l_bytes_out += ULONG_MAX - ns->rbo + rbo;
+                       debug_msg("update_ifdata(%s) - Overflow in rbo: %"PRI_STAT" -> %"PRI_STAT,caller,ns->rbo,rbo);
+                       l_bytes_out += STAT_MAX - ns->rbo + rbo;
                     }
                     ns->rbo = rbo;
 
-                    rpo = strtoul(p, &p ,10);
+                    rpo = strtostat(p, &p ,10);
                     if ( rpo >= ns->rpo ) {
                        l_pkts_out += rpo - ns->rpo;
                     } else {
-                       debug_msg("update_ifdata(%s) - Overflow in rpo: %lu -> %lu",caller,ns->rpo,rpo);
-                       l_pkts_out += ULONG_MAX - ns->rpo + rpo;
+                       debug_msg("update_ifdata(%s) - Overflow in rpo: %"PRI_STAT" -> %"PRI_STAT,caller,ns->rpo,rpo);
+                       l_pkts_out += STAT_MAX - ns->rpo + rpo;
                     }
                     ns->rpo = rpo;
                   }
@@ -632,6 +697,18 @@ total_jiffies_func ( void )
           wio_jiffies + irq_jiffies + sirq_jiffies + steal_jiffies;
 }
 
+double sanityCheck( int line, char *file, const char *func, double v, double diff, double dt, JT a, JT b, JT c, JT d )
+{
+   if ( v > 100.0 ) {
+      err_msg( "file %s, line %d, fn %s: val > 100: %g ~ %g / %g = (%llu - %llu) / (%llu - %llu)\n", file, line, func, v, diff, dt, a, b, c, d );
+      return 100.0;
+   }
+   else if ( v < 0.0 ) {
+      err_msg( "file %s, line %d, fn %s: val < 0: %g ~ %g / %g = (%llu - %llu) / (%llu - %llu)\n", file, line, func, v, diff, dt, a, b, c, d );
+      return 0.0;
+   }
+   return v;
+}
 
 g_val_t
 cpu_user_func ( void )
@@ -657,6 +734,8 @@ cpu_user_func ( void )
        val.f = ((double)diff/(double)(total_jiffies - last_total_jiffies)) * 100.0;
      else
        val.f = 0.0;
+
+     val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)diff, (double)(total_jiffies - last_total_jiffies), user_jiffies, last_user_jiffies, total_jiffies, last_total_jiffies );
 
      last_user_jiffies  = user_jiffies;
      last_total_jiffies = total_jiffies;
@@ -690,6 +769,8 @@ cpu_nice_func ( void )
        val.f = ((double)diff/(double)(total_jiffies - last_total_jiffies)) * 100.0;
      else
        val.f = 0.0;
+
+     val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)diff, (double)(total_jiffies - last_total_jiffies), nice_jiffies, last_nice_jiffies, total_jiffies, last_total_jiffies );
 
      last_nice_jiffies  = nice_jiffies;
      last_total_jiffies = total_jiffies;
@@ -733,6 +814,8 @@ cpu_system_func ( void )
      else
        val.f = 0.0;
 
+     val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)diff, (double)(total_jiffies - last_total_jiffies), system_jiffies, last_system_jiffies, total_jiffies, last_total_jiffies );
+
      last_system_jiffies  = system_jiffies;
      last_total_jiffies = total_jiffies;
 
@@ -768,6 +851,8 @@ cpu_idle_func ( void )
      else
        val.f = 0.0;
 
+     val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)diff, (double)(total_jiffies - last_total_jiffies), idle_jiffies, last_idle_jiffies, total_jiffies, last_total_jiffies );
+
      last_idle_jiffies  = idle_jiffies;
      last_total_jiffies = total_jiffies;
 
@@ -793,6 +878,8 @@ cpu_aidle_func ( void )
    total_jiffies = total_jiffies_func();
 
    val.f = ((double)(idle_jiffies/total_jiffies)) * 100.0;
+
+   val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)idle_jiffies, (double)total_jiffies, idle_jiffies, total_jiffies, 0, 0 );
    return val;
 }
 
@@ -829,6 +916,8 @@ cpu_wio_func ( void )
        val.f = ((double)diff/(double)(total_jiffies - last_total_jiffies)) * 100.0;
      else
        val.f = 0.0;
+
+     val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)diff, (double)(total_jiffies - last_total_jiffies), wio_jiffies, last_wio_jiffies, total_jiffies, last_total_jiffies );
 
      last_wio_jiffies  = wio_jiffies;
      last_total_jiffies = total_jiffies;
@@ -873,6 +962,8 @@ cpu_intr_func ( void )
      else
        val.f = 0.0;
 
+     val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)diff, (double)(total_jiffies - last_total_jiffies), intr_jiffies, last_intr_jiffies, total_jiffies, last_total_jiffies );
+
      last_intr_jiffies  = intr_jiffies;
      last_total_jiffies = total_jiffies;
 
@@ -916,6 +1007,8 @@ cpu_sintr_func ( void )
        val.f = ((double)diff/(double)(total_jiffies - last_total_jiffies)) * 100.0;
      else
        val.f = 0.0;
+
+     val.f = sanityCheck( __LINE__, __FILE__, __FUNCTION__, val.f, (double)diff, (double)(total_jiffies - last_total_jiffies), sintr_jiffies, last_sintr_jiffies, total_jiffies, last_total_jiffies );
 
      last_sintr_jiffies  = sintr_jiffies;
      last_total_jiffies = total_jiffies;
@@ -1091,6 +1184,23 @@ mem_buffers_func ( void )
      val.f = atof( p );
    } else {
      val.f = 0.0;
+   }
+
+   return val;
+}
+
+g_val_t
+mem_sreclaimable_func ( void )
+{
+   char *p;
+   g_val_t val;
+
+   p = strstr( update_file(&proc_meminfo), "SReclaimable:" );
+   if(p) {
+     p = skip_token(p);
+     val.f = atof( p );
+   } else {
+     val.f = 0;
    }
 
    return val;

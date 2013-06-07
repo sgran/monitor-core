@@ -16,6 +16,7 @@
 #include "update_pidfile.h"
 
 #include "rrd_helpers.h"
+#include "export_helpers.h"
 
 #define METADATA_SLEEP_RANDOMIZE 5.0
 #define METADATA_MINIMUM_SLEEP 1
@@ -37,6 +38,8 @@ extern void* server_thread(void *);
 extern int parse_config_file ( char *config_file );
 extern int number_of_datasources ( char *config_file );
 extern struct type_tag* in_type_list (char *, unsigned int);
+
+extern g_udp_socket *carbon_udp_socket;
 
 struct gengetopt_args_info args_info;
 
@@ -254,6 +257,8 @@ write_root_summary(datum_t *key, datum_t *val, void *arg)
 	 if (gmetad_config.write_rrds == 0)
 	     return 0;
 
+   debug_msg("Writing Root Summary data for metric %s", name);
+
    rc = write_data_to_rrd( NULL, NULL, name, sum, num, 15, 0, metric->slope);
    if (rc)
       {
@@ -376,17 +381,20 @@ main ( int argc, char *argv[] )
          become_a_nobody(c->setuid_username);
       }
 
-   if( stat( c->rrd_rootdir, &struct_stat ) )
+   if( c->write_rrds )
       {
-          err_sys("Please make sure that %s exists", c->rrd_rootdir);
-      }
-   if ( struct_stat.st_uid != gmetad_uid )
-      {
-          err_quit("Please make sure that %s is owned by %s", c->rrd_rootdir, gmetad_username);
-      }
-   if (! (struct_stat.st_mode & S_IWUSR) )
-      {
-          err_quit("Please make sure %s has WRITE permission for %s", gmetad_username, c->rrd_rootdir);
+         if( stat( c->rrd_rootdir, &struct_stat ) )
+            {
+                err_sys("Please make sure that %s exists", c->rrd_rootdir);
+            }
+         if ( struct_stat.st_uid != gmetad_uid )
+            {
+                err_quit("Please make sure that %s is owned by %s", c->rrd_rootdir, gmetad_username);
+            }
+         if (! (struct_stat.st_mode & S_IWUSR) )
+            {
+                err_quit("Please make sure %s has WRITE permission for %s", gmetad_username, c->rrd_rootdir);
+            }
       }
 
    if(debug_level)
@@ -395,21 +403,39 @@ main ( int argc, char *argv[] )
          hash_foreach( sources, print_sources, NULL);
       }
 
+#ifdef WITH_MEMCACHED
+   if (c->memcached_parameters != NULL)
+      {
+         memcached_connection_pool = memcached_pool(c->memcached_parameters, strlen(c->memcached_parameters));
+      }
+#endif /* WITH_MEMCACHED */
+
    server_socket = g_tcp_socket_server_new( c->xml_port );
    if (server_socket == NULL)
       {
-         perror("tcp_listen() on xml_port failed");
-         exit(1);
+         err_quit("tcp_listen() on xml_port failed");
       }
    debug_msg("xml listening on port %d", c->xml_port);
    
    interactive_socket = g_tcp_socket_server_new( c->interactive_port );
    if (interactive_socket == NULL)
       {
-         perror("tcp_listen() on interactive_port failed");
-         exit(1);
+         err_quit("tcp_listen() on interactive_port failed");
       }
    debug_msg("interactive xml listening on port %d", c->interactive_port);
+
+    /* Forward metrics to Graphite using carbon protocol */
+    if (c->carbon_server != NULL)
+      {
+         if (!strcmp(c->carbon_protocol, "udp"))
+            {
+               carbon_udp_socket = init_carbon_udp_socket (c->carbon_server, c->carbon_port);
+
+               if (carbon_udp_socket == NULL)
+                  err_quit("carbon %s socket failed for %s:%d", c->carbon_protocol, c->carbon_server, c->carbon_port);
+            }
+         debug_msg("carbon forwarding ready to send via %s to %s:%d", c->carbon_protocol, c->carbon_server, c->carbon_port);
+      }
 
    /* initialize summary mutex */
    root.sum_finished = (pthread_mutex_t *) 

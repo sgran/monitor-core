@@ -22,6 +22,7 @@
 #ifdef LINUX
 #include <sys/utsname.h>
 #endif
+#include <zlib.h>
 
 #include <apr.h>
 #include <apr_strings.h>
@@ -67,6 +68,9 @@
 /* Don't trigger a cloud discovery until the gmond has been up for a while */
 #define REDISCOVER_DELAY 15
 #endif
+
+/* The key in the apr_socket_t struct where our gzipped data is stored */
+#define GZIP_KEY "gzip"
 
 /* When this gmond was started */
 apr_time_t started;
@@ -162,6 +166,7 @@ struct Ganglia_channel {
   Ganglia_channel_types type;
   Ganglia_acl *acl;
   int timeout;
+  int gzip_output;
 };
 typedef struct Ganglia_channel Ganglia_channel;
 
@@ -245,7 +250,7 @@ extern char **environ;
 
 /* apr_socket_send can't assure all characters in buf been sent. */
 static apr_status_t
-socket_send(apr_socket_t *sock, const char *buf, apr_size_t *len)
+socket_send_raw(apr_socket_t *sock, const char *buf, apr_size_t *len)
 {
   apr_size_t total = *len;
   apr_size_t thisTime = total;
@@ -263,6 +268,52 @@ socket_send(apr_socket_t *sock, const char *buf, apr_size_t *len)
         }
       else
           break;
+    }
+  return ret;
+}
+
+/* wrap socket_send_raw with gzip deflate if enabled. */
+static apr_status_t
+socket_send(apr_socket_t *sock, const char *buf, apr_size_t *len)
+{
+  char outputbuffer[2048];
+  const int outputlen = sizeof(outputbuffer);
+  apr_size_t wlen;
+  apr_status_t ret;
+  z_stream *strm;
+  int z_ret;
+
+  ret = apr_socket_data_get((void**)&strm, GZIP_KEY, sock);
+  if (ret != APR_SUCCESS || strm == NULL)
+    {
+      ret = socket_send_raw( sock, buf, len );
+    }
+  else
+    {
+      strm->next_in = (Bytef *)buf;
+      strm->avail_in = *len;
+
+      while( strm->avail_in )
+	{
+	  strm->next_out = (Bytef *)outputbuffer;
+	  strm->avail_out = outputlen;
+
+	  z_ret = deflate( strm, 0 );
+	  if (z_ret != Z_OK)
+	    {
+	      return APR_ENOMEM;
+	    }
+
+	  wlen = outputlen - strm->avail_out;
+	  if( wlen )
+	    {
+	      ret = socket_send_raw( sock, outputbuffer, &wlen );
+	      if(ret != APR_SUCCESS)
+		{
+		  return ret;
+		}
+	    }
+	}
     }
   return ret;
 }
@@ -849,7 +900,7 @@ setup_listen_channels_pollset( void )
     {
       cfg_t *tcp_accept_channel = cfg_getnsec( config_file, "tcp_accept_channel", i);
       char *bindaddr, *interface, *family;
-      int port, timeout;
+      int port, timeout, gzip_output;
       apr_socket_t *socket = NULL;
       apr_pollfd_t socket_pollfd;
       apr_pool_t *pool = NULL;
@@ -860,9 +911,10 @@ setup_listen_channels_pollset( void )
       interface      = cfg_getstr( tcp_accept_channel, "interface"); 
       timeout        = cfg_getint( tcp_accept_channel, "timeout");
       family         = cfg_getstr( tcp_accept_channel, "family");
+      gzip_output     = cfg_getbool( tcp_accept_channel, "gzip_output");
 
-      debug_msg("tcp_accept_channel bind=%s port=%d",
-                bindaddr? bindaddr: "NULL", port);
+      debug_msg("tcp_accept_channel bind=%s port=%d gzip_output=%d",
+                bindaddr? bindaddr: "NULL", port, gzip_output);
 
       /* Create a subpool context */
       apr_pool_create(&pool, global_context);
@@ -871,7 +923,7 @@ setup_listen_channels_pollset( void )
 
       /* Create the socket for the channel, blocking w/timeout */
       socket = create_tcp_server(pool, sock_family, port, bindaddr, 
-                                 interface, 1);
+                                 interface, 1, gzip_output);
       if(!socket)
         {
           err_msg("Unable to create tcp_accept_channel. Exiting.\n");
@@ -897,6 +949,9 @@ setup_listen_channels_pollset( void )
       /* Save the timeout for this socket */
       channel->timeout = timeout;
 
+      // Does channel support gzip
+      channel->gzip_output = gzip_output;
+      
       /* Save the ACL information */
       channel->acl = Ganglia_acl_create( tcp_accept_channel, pool ); 
 
@@ -1248,12 +1303,7 @@ Ganglia_metadata_save( Ganglia_host *host, Ganglia_metadata_msg *message )
         if(status != APR_SUCCESS)
             return;
 
-        /* NOTE: In order for gmetric messages to be properly saved to the hash table
-        * based on the name of the gmetric sent...we need to strdup() the name
-        * since the xdr_free below will blast the value later (along with the other
-        * allocated structure elements).  This is only performed once at gmetric creation */
-        metric->name = apr_pstrdup(host->pool, message->Ganglia_metadata_msg_u.gfull.metric_id.name);
-        debug_msg("***Allocating metadata packet for host--%s-- and metric --%s-- ****\n", host->hostname, metric->name);
+        debug_msg("***Allocating metadata packet for host--%s-- and metric --%s-- ****\n", host->hostname, message->Ganglia_metadata_msg_u.gfull.metric_id.name);
     }
     
     if(metric)
@@ -1261,6 +1311,7 @@ Ganglia_metadata_save( Ganglia_host *host, Ganglia_metadata_msg *message )
         Ganglia_metadata_msg *fmessage = &(metric->message_u.f_message);
         u_int i,mlen = message->Ganglia_metadata_msg_u.gfull.metric.metadata.metadata_len;
         
+        metric->name = apr_pstrdup(metric->pool, message->Ganglia_metadata_msg_u.gfull.metric_id.name);
         fmessage->id = message->id;
         fmessage->Ganglia_metadata_msg_u.gfull.metric_id.host = 
             apr_pstrdup(metric->pool, message->Ganglia_metadata_msg_u.gfull.metric_id.host);
@@ -1364,12 +1415,7 @@ Ganglia_value_save( Ganglia_host *host, Ganglia_value_msg *message )
       if(status != APR_SUCCESS)
           return;
 
-      /* NOTE: In order for gmetric messages to be properly saved to the hash table
-       * based on the name of the gmetric sent...we need to strdup() the name
-       * since the xdr_free below will blast the value later (along with the other
-       * allocated structure elements).  This is only performed once at gmetric creation */
-      metric->name = apr_pstrdup(host->pool, message->Ganglia_value_msg_u.gstr.metric_id.name );
-      debug_msg("***Allocating value packet for host--%s-- and metric --%s-- ****\n", message->Ganglia_value_msg_u.gstr.metric_id.host, metric->name);
+      debug_msg("***Allocating value packet for host--%s-- and metric --%s-- ****\n", message->Ganglia_value_msg_u.gstr.metric_id.host, message->Ganglia_value_msg_u.gstr.metric_id.name );
     }
 
 
@@ -1377,6 +1423,7 @@ Ganglia_value_save( Ganglia_host *host, Ganglia_value_msg *message )
     {
       Ganglia_value_msg *vmessage = &(metric->message_u.v_message);
 
+      metric->name = apr_pstrdup(metric->pool, message->Ganglia_value_msg_u.gstr.metric_id.name );
       vmessage->id = message->id;
       vmessage->Ganglia_value_msg_u.gstr.metric_id.host = 
           apr_pstrdup(metric->pool, message->Ganglia_value_msg_u.gstr.metric_id.host);
@@ -1591,6 +1638,86 @@ process_udp_recv_channel(const apr_pollfd_t *desc, apr_time_t now)
   apr_pool_destroy(p);
 
   return;
+}
+
+static z_stream *
+zstream_new()
+{
+  int err;
+
+  z_stream *strm = malloc(sizeof(z_stream));
+  if (strm == 0)
+    {
+      return NULL;
+    }
+
+  strm->next_in   = 0;
+  strm->avail_in  = 0;
+  strm->next_out  = 0;
+  strm->avail_out = 0;
+  strm->zalloc    = 0;
+  strm->zfree     = 0;
+  strm->opaque    = 0;
+
+  /* Yes, 15 + 16 are 2 special magic values documented in zlib.h */
+  err = deflateInit2(strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 15 + 16, 8, Z_DEFAULT_STRATEGY);
+  if (err != Z_OK)
+    {
+      free( strm );
+      return NULL;
+    }
+
+  return strm;
+}
+
+static apr_status_t
+socket_flush( apr_socket_t *client, int gzip_output )
+{
+  char outputbuffer[2048];
+  const int outputlen = sizeof(outputbuffer);
+  int ret;
+  int status;
+  apr_size_t wlen;
+  z_stream *strm;
+
+  if ( !gzip_output )
+    {
+      return APR_SUCCESS;
+    }
+
+  if (APR_SUCCESS == apr_socket_data_get((void**)&strm, GZIP_KEY, client))
+    {
+      while( 1 )
+	{
+	  strm->next_out  = (Bytef *)outputbuffer;
+	  strm->avail_out = outputlen;
+
+	  ret = deflate( strm, Z_FINISH );
+	  if (ret != Z_OK && ret != Z_STREAM_END)
+	    {
+	      return APR_ENOMEM;
+	    }
+
+	  wlen = outputlen - strm->avail_out;
+	  status = socket_send_raw( client, outputbuffer, &wlen );
+	  if(status != APR_SUCCESS)
+	    return status;
+
+	  if(ret == Z_STREAM_END)
+	    return APR_SUCCESS;
+	}
+    }
+  return APR_SUCCESS;
+}
+
+static void
+zstream_destroy( z_stream *strm )
+{
+  if (strm)
+    {
+      deflateEnd(strm);
+      free (strm);
+    }
 }
 
 static apr_status_t
@@ -1902,6 +2029,23 @@ process_tcp_accept_channel(const apr_pollfd_t *desc, apr_time_t now)
   if(Ganglia_acl_action( channel->acl, remotesa ) != GANGLIA_ACCESS_ALLOW)
     goto close_accept_socket;
 
+  if ( channel->gzip_output )
+    {
+      z_stream *strm = zstream_new();
+      if (strm == NULL)
+	{
+	  debug_msg("failed to allocate gzip stream");
+	  goto close_accept_socket;
+	}
+      apr_status_t r = apr_socket_data_set(client, strm, GZIP_KEY, &zstream_destroy);
+      if (r != APR_SUCCESS)
+	{
+	  debug_msg("failed to set socket user data");
+	  zstream_destroy(strm);
+	  goto close_accept_socket;
+	}
+    }
+
   /* Print the DTD, GANGLIA_XML and CLUSTER tags */
   status = print_xml_header(client);
   if(status != APR_SUCCESS)
@@ -1965,6 +2109,13 @@ process_tcp_accept_channel(const apr_pollfd_t *desc, apr_time_t now)
 
   /* Close the CLUSTER and GANGLIA_XML tags */
   print_xml_footer(client);
+
+  status = socket_flush( client, channel->gzip_output );
+  if (status != APR_SUCCESS)
+    {
+      debug_msg("failed to finish compressing stream; returned '%d'",status);
+      goto close_accept_socket;
+    }
 
   /* Close down the accepted socket */
 close_accept_socket:
@@ -3031,7 +3182,7 @@ cleanup_data( apr_pool_t *pool, apr_time_t now)
                 {
                   /* this is a stale gmetric */
                   debug_msg("deleting old metric '%s' from host '%s'", metric->name, host->hostname);
-#if 0
+
                   /* remove the metric from the metric and values hash */
                   apr_thread_mutex_lock(host->mutex);
                   apr_hash_set( host->metrics, metric->name, APR_HASH_KEY_STRING, NULL);
@@ -3039,7 +3190,6 @@ cleanup_data( apr_pool_t *pool, apr_time_t now)
                   apr_thread_mutex_unlock(host->mutex);
                   /* destroy any memory that was allocated for this gmetric */
                   apr_pool_destroy( metric->pool );
-#endif
                 }
             }
         }
@@ -3088,22 +3238,14 @@ void sig_handler(int i)
 static void* APR_THREAD_FUNC tcp_listener(apr_thread_t *thd, void *data)
 {
   apr_time_t now;
-  apr_interval_time_t wait = 1000;
+  apr_interval_time_t wait = 100 * 1000; // 100ms
 
   debug_msg("[tcp] Starting TCP listener thread...");
   for(;!done;)
     {
-      if(!deaf)
-        {
-          now = apr_time_now();
-          /* Pull in incoming data */
-          poll_tcp_listen_channels(wait, now);
-        }
-      else
-        {
-          apr_sleep( wait );
-        }
-
+      now = apr_time_now();
+      /* Pull in incoming data */
+      poll_tcp_listen_channels(wait, now);
     }
     apr_thread_exit(thd, APR_SUCCESS);
 
@@ -3253,11 +3395,14 @@ main ( int argc, char *argv[] )
   udp_last_heard = last_cleanup = next_collection = now = apr_time_now();
 
   /* Create TCP listener thread */
-  apr_thread_t *thread;
-  if (apr_thread_create(&thread, NULL, tcp_listener, NULL, global_context) != APR_SUCCESS)
+  if(!deaf)
     {
-      err_msg("Failed to create TCP listener thread. Exiting.\n");
-      exit(1);
+      apr_thread_t *thread;
+      if (apr_thread_create(&thread, NULL, tcp_listener, NULL, global_context) != APR_SUCCESS)
+        {
+          err_msg("Failed to create TCP listener thread. Exiting.\n");
+          exit(1);
+        }
     }
 
   /* Loop */

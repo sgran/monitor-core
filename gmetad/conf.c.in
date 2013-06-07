@@ -270,11 +270,27 @@ static DOTCONF_CB(cb_carbon_port)
    return NULL;
 }
 
+static DOTCONF_CB(cb_carbon_protocol)
+{
+   gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+   debug_msg("Setting carbon protocol to %s", cmd->data.str);
+   c->carbon_protocol = strdup (cmd->data.str);
+   return NULL;
+}
+
 static DOTCONF_CB(cb_carbon_timeout)
 {
    gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
    debug_msg("Setting carbon timeout to %ld", cmd->data.value);
    c->carbon_timeout = cmd->data.value;
+   return NULL;
+}
+
+static DOTCONF_CB(cb_memcached_parameters)
+{
+   gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+   debug_msg("Enabling memcached parameters to %s", cmd->data.str);
+   c->memcached_parameters = strdup (cmd->data.str);
    return NULL;
 }
 
@@ -285,6 +301,14 @@ static DOTCONF_CB(cb_graphite_prefix)
    c->graphite_prefix = strdup (cmd->data.str);
    return NULL;
 }
+
+static DOTCONF_CB(cb_graphite_path)
+{
+	gmetad_config_t *c = (gmetad_config_t*) cmd->option->info;
+	debug_msg("Setting Graphite path to %s", cmd->data.str);
+	c->graphite_path = strdup (cmd->data.str);
+	return NULL;
+} 
 
 static DOTCONF_CB(cb_unsummarized_metrics)
 {
@@ -329,8 +353,11 @@ static configoption_t gmetad_options[] =
       {"case_sensitive_hostnames", ARG_INT, cb_case_sensitive_hostnames, &gmetad_config, 0},
       {"carbon_server", ARG_STR, cb_carbon_server, &gmetad_config, 0},
       {"carbon_port", ARG_INT, cb_carbon_port, &gmetad_config, 0},
+      {"carbon_protocol", ARG_STR, cb_carbon_protocol, &gmetad_config, 0},
       {"carbon_timeout", ARG_INT, cb_carbon_timeout, &gmetad_config, 0},
+      {"memcached_parameters", ARG_STR, cb_memcached_parameters, &gmetad_config, 0},
       {"graphite_prefix", ARG_STR, cb_graphite_prefix, &gmetad_config, 0},
+      {"graphite_path", ARG_STR, cb_graphite_path, &gmetad_config, 0},
       {"unsummarized_metrics", ARG_LIST, cb_unsummarized_metrics, &gmetad_config, 0},
       LAST_OPTION
    };
@@ -357,6 +384,9 @@ set_defaults (gmetad_config_t *config)
    config->RRAs[1] = "RRA:AVERAGE:0.5:4:20160";
    config->RRAs[2] = "RRA:AVERAGE:0.5:40:52704";
    config->case_sensitive_hostnames = 1;
+   config->carbon_port = 2003;
+   config->carbon_protocol = "tcp";
+   config->carbon_timeout = 500;
    config->unsummarized_metrics = NULL;
 }
 

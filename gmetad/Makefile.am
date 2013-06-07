@@ -20,10 +20,11 @@ cmdline.c: cmdline.c.in $(FIXCONFIG)
 	$(FIXCONFIG) cmdline.c.in
 
 gmetad_SOURCES =  gmetad.c cmdline.c.in cmdline.c cmdline.h gmetad.h data_thread.c \
-   server.c process_xml.c rrd_helpers.c conf.c conf.h type_hash.c \
-   xml_hash.c cleanup.c rrd_helpers.h daemon_init.c daemon_init.h
+   server.c process_xml.c rrd_helpers.c export_helpers.c conf.c conf.h type_hash.c \
+   xml_hash.c cleanup.c rrd_helpers.h export_helpers.h daemon_init.c daemon_init.h \
+	 server_priv.h  
 gmetad_LDADD   = $(top_builddir)/lib/libganglia.la -lrrd -lm \
-                 $(GLDADD)
+                 $(GLDADD) $(DEPS_LIBS)
 
 gmetad_LDFLAGS = $(GLDFLAGS)
 
@@ -39,8 +40,16 @@ type_hash.c: type_hash.gperf
 gmetad.conf:	gmetad.conf.in $(FIXCONFIG)
 	$(FIXCONFIG) gmetad.conf.in
 
+gmetad.service:	gmetad.service.in $(FIXCONFIG)
+	$(FIXCONFIG) gmetad.service.in
+
 install-data-hook:	gmetad.conf
 	mkdir -p $(DESTDIR)$(sysconfdir) && \
 	  $(INSTALL_DATA) gmetad.conf $(DESTDIR)$(sysconfdir)/gmetad.conf
 
 CLEANFILES = cmdline.c
+
+if HAVE_SYSTEMD
+systemdsystemunit_DATA = \
+        gmetad.service
+endif

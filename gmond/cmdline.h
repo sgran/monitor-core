@@ -74,6 +74,7 @@ struct gengetopt_args_info
   unsigned int bandwidth_given ;	/**< @brief Whether bandwidth was given.  */
   unsigned int convert_given ;	/**< @brief Whether convert was given.  */
   unsigned int pid_file_given ;	/**< @brief Whether pid-file was given.  */
+  unsigned int gzip_output_given ;	/**< @brief Whether gzip-output was given.  */
 
 } ;
 

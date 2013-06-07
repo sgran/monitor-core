@@ -6,6 +6,7 @@
 #include <ganglia.h>
 #include "gmetad.h"
 #include "rrd_helpers.h"
+#include "export_helpers.h"
 
 extern int zero_out_summary(datum_t *key, datum_t *val, void *arg);
 extern char* getfield(char *buf, short int index);
@@ -203,30 +204,31 @@ startElement_GRID(void *data, const char *el, const char **attr)
                                      name);
                      return 1;
                   }
+
+               source->metric_summary_pending = hash_create(DEFAULT_METRICSIZE);
+               if (!source->metric_summary_pending)
+                  {
+                     err_msg("Could not create pending summary hash for cluster %s",
+                                     name);
+                     return 1;
+                  }
+
                source->ds = xmldata->ds;
 
                /* Initialize the partial sum lock */
                source->sum_finished = (pthread_mutex_t *) 
                        malloc(sizeof(pthread_mutex_t));
                pthread_mutex_init(source->sum_finished, NULL);
-
-               /* Grab the "partial sum" mutex until we are finished
-                * summarizing. */
-               pthread_mutex_lock(source->sum_finished);
             }
          else
             {  /* Found Cluster. Put into our Source buffer in xmldata. */
                memcpy(source, hash_datum->data, hash_datum->size);
                datum_free(hash_datum);
 
-               /* Grab the "partial sum" mutex until we are finished
-                * summarizing. Needs to be done asap.*/
-               pthread_mutex_lock(source->sum_finished);
-
                source->hosts_up = 0;
                source->hosts_down = 0;
 
-               hash_foreach(source->metric_summary, zero_out_summary, NULL);
+               hash_foreach(source->metric_summary_pending, zero_out_summary, NULL);
             }
 
          /* Edge has the same invariant as in fillmetric(). */
@@ -322,28 +324,30 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
                err_msg("Could not create summary hash for cluster %s", name);
                return 1;
             }
+
+         source->metric_summary_pending = hash_create(DEFAULT_METRICSIZE);
+         if (!source->metric_summary_pending)
+            {
+               err_msg("Could not create pending summary hash for cluster %s", name);
+               return 1;
+            }
+
          source->ds = xmldata->ds;
          
          /* Initialize the partial sum lock */
          source->sum_finished = (pthread_mutex_t *) 
                  malloc(sizeof(pthread_mutex_t));
          pthread_mutex_init(source->sum_finished, NULL);
-
-         /* Grab the "partial sum" mutex until we are finished summarizing. */
-         pthread_mutex_lock(source->sum_finished);
       }
    else
       {
          memcpy(source, hash_datum->data, hash_datum->size);
          datum_free(hash_datum);
 
-         /* We need this lock before zeroing metric sums. */
-         pthread_mutex_lock(source->sum_finished);
-
          source->hosts_up = 0;
          source->hosts_down = 0;
 
-         hash_foreach(source->metric_summary, zero_out_summary, NULL);
+         hash_foreach(source->metric_summary_pending, zero_out_summary, NULL);
       }
 
    /* Edge has the same invariant as in fillmetric(). */
@@ -645,6 +649,12 @@ startElement_METRIC(void *data, const char *el, const char **attr)
                         xmldata->ds->step, xmldata->source.localtime, slope);
 		  if (gmetad_config.carbon_server) // if the user has specified a carbon server, send the metric to carbon as well
                      carbon_ret=write_data_to_carbon(xmldata->sourcename, xmldata->hostname, name, metricval,xmldata->source.localtime);
+#ifdef WITH_MEMCACHED
+		  if (gmetad_config.memcached_parameters) {
+                     int mc_ret=write_data_to_memcached(xmldata->sourcename, xmldata->hostname, name, metricval, xmldata->source.localtime, metric->dmax);
+		  }
+
+#endif /* WITH_MEMCACHED */
             }
          metric->id = METRIC_NODE;
          metric->report_start = metric_report_start;
@@ -674,7 +684,7 @@ startElement_METRIC(void *data, const char *el, const char **attr)
    /* Always update summary for numeric metrics. */
    if (do_summary)
       {
-         summary = xmldata->source.metric_summary;
+         summary = xmldata->source.metric_summary_pending;
          hash_datum = hash_lookup(&hashkey, summary);
          if (!hash_datum)
             {
@@ -914,7 +924,7 @@ startElement_METRICS(void *data, const char *el, const char **attr)
             }
       }
 
-   summary = xmldata->source.metric_summary;
+   summary = xmldata->source.metric_summary_pending;
    hash_datum = hash_lookup(&hashkey, summary);
    if (!hash_datum)
       {
@@ -1114,15 +1124,48 @@ static int
 endElement_GRID(void *data, const char *el)
 {
    xmldata_t *xmldata = (xmldata_t *) data;
-   Source_t *source = &xmldata->source;
 
-   /*release the partial sum mutex */
-   pthread_mutex_unlock(source->sum_finished);
+   /* In non-scalable mode, we ignore GRIDs. */
+   if (!gmetad_config.scalable_mode)
+      return 0;
 
-   if (gmetad_config.scalable_mode)
+   xmldata->grid_depth--;
+   debug_msg("Found a </GRID>, depth is now %d", xmldata->grid_depth);
+
+   datum_t hashkey, hashval;
+   datum_t *rdatum;
+   hash_t *summary;
+   Source_t *source;
+
+   /* Only keep info on sources we are an authority on. */
+   if (authority_mode(xmldata))
       {
-         xmldata->grid_depth--;
-         debug_msg("Found a </GRID>, depth is now %d", xmldata->grid_depth);
+         source = &xmldata->source;
+
+         /* Swap the metric_summary and metric_summary_pending over */
+         pthread_mutex_lock(source->sum_finished);
+         {
+             summary = xmldata->source.metric_summary_pending;
+             xmldata->source.metric_summary_pending = xmldata->source.metric_summary;
+             xmldata->source.metric_summary = summary;
+         }
+         pthread_mutex_unlock(source->sum_finished);
+
+         hashkey.data = (void*) xmldata->sourcename;
+         hashkey.size = strlen(xmldata->sourcename) + 1;
+
+         hashval.data = source;
+         /* Trim structure to the correct length. */
+         hashval.size = sizeof(*source) - GMETAD_FRAMESIZE + source->stringslen;
+
+         /* We insert here to get an accurate hosts up/down value. */
+         rdatum = hash_insert( &hashkey, &hashval, xmldata->root);
+         if (!rdatum) {
+               err_msg("Could not insert source %s", xmldata->sourcename);
+               return 1;
+         }
+         /* Write the metric summaries to the RRD. */
+         hash_foreach(summary, finish_processing_source, data);
       }
    return 0;
 }
@@ -1141,9 +1184,14 @@ endElement_CLUSTER(void *data, const char *el)
    if (authority_mode(xmldata))
       {
          source = &xmldata->source;
-         summary = xmldata->source.metric_summary;
 
-         /* Release the partial sum mutex */
+         /* Swap the metric_summary and metric_summary_pending over */
+         pthread_mutex_lock(source->sum_finished);
+         {
+             summary = xmldata->source.metric_summary_pending;
+             xmldata->source.metric_summary_pending = xmldata->source.metric_summary;
+             xmldata->source.metric_summary = summary;
+         }
          pthread_mutex_unlock(source->sum_finished);
 
          hashkey.data = (void*) xmldata->sourcename;
@@ -1179,7 +1227,7 @@ end (void *data, const char *el)
       {
          case GRID_TAG:
             rc = endElement_GRID(data, el);
-	    /* No break. */
+            break;
 
          case CLUSTER_TAG:
             rc = endElement_CLUSTER(data, el);

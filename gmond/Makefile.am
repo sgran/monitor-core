@@ -2,6 +2,9 @@
 include $(top_srcdir)/ganglia.inc
 
 SUBDIRS = modules python_modules php_modules
+if BUILD_PERL
+SUBDIRS += perl_modules
+endif
 
 EXTRA_DIST = gmond.aix.init gmond.solaris.init.in gmond.init gmond.init.SuSE gmond.conf.5 gmond.conf.html conf.pod cmdline.sh
 if STATIC_BUILD
@@ -71,6 +74,9 @@ gmond_LDFLAGS = $(GLDFLAGS)
 gmond.solaris.init:	gmond.solaris.init.in $(FIXCONFIG)
 	$(FIXCONFIG) gmond.solaris.init.in
 
+gmond.service:	gmond.service.in $(FIXCONFIG)
+	$(FIXCONFIG) gmond.service.in
+
 # we declare the hook so that gmond.solaris.init will be created within the
 # build tree during the install phase
 # however, the action to install it is commented out, as it is likely
@@ -80,3 +86,8 @@ install-exec-hook:	gmond.solaris.init
 #	$(INSTALL_SCRIPT) gmond.solaris.init
 
 CLEANFILES = cmdline.c	
+
+if HAVE_SYSTEMD
+systemdsystemunit_DATA = \
+        gmond.service
+endif

@@ -527,7 +527,7 @@ cmdline_parser_internal (
         { 0,  0, 0, 0 }
       };
 
-      c = getopt_long (argc, argv, "hVc:l:d:ftmbr:p:", long_options, &option_index);
+      c = getopt_long (argc, argv, "hVc:l:d:ftmbr:p:z", long_options, &option_index);
 
       if (c == -1) break;	/* Exit from `while (1)' loop.  */
 

@@ -602,6 +602,25 @@ AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_sy
 
 echo
 
+echo Checking for zlib
+AC_ARG_WITH([zlib],
+  AS_HELP_STRING([--with-zlib=DIR], [Specify location for zlib]),
+  [if test x"$withval" != xno; then libzlib="yes"; libzlibpath="$withval"; fi])
+if test x"$libzlibpath" != x && test x"$libzlibpath" != xyes; then
+  CFLAGS="$CFLAGS -I$libzlibpath/include"
+  CPPFLAGS="$CPPFLAGS -I$libzlibpath/include"
+  LDFLAGS="$LDFLAGS -L$libzlibpath/${LIB_SUFFIX}"
+  echo "Added -I$libzlibpath/include to CFLAGS and CPPFLAGS"
+  echo "Added -L$libzlibpath/${LIB_SUFFIX} to LDFLAGS"
+fi
+AC_CHECK_HEADERS([zlib.h])
+AC_CHECK_LIB(z, deflate)
+if test x"$ac_cv_lib_z_deflate" != xyes; then
+  echo "zlib library not configured properly"; exit 1;
+fi
+echo "Found a suitable zlib"
+
+echo
 
 AC_CHECK_LIB(rpc, xdr_string)
 AC_CHECK_LIB(socket, socket)
