@@ -392,10 +392,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
                       const char *state, unsigned int localtime, const char *tags_str, unsigned int ttl)
 {
    riemann_message_t msg = RIEMANN_MSG_INIT;
-   riemann_message_t *resp = NULL;
    riemann_event_t **events;
-
-   int error;
 
    events = riemann_event_alloc_events(1);
    events[0] = riemann_event_alloc_event();
@@ -442,6 +439,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    riemann_event_set_ttl(events[0], ttl);
    riemann_message_set_events(&msg, events, 1);
 
+   int error;
    char buffer[BUFSIZ];
    static char *format = "[riemann] %T host=%h,service=%s,state=%S,metric_f=%mf,metric_d=%md,metric_sint64=%mi,ttl=%t,tags=%G,attributes=%a";
    error = riemann_event_strfevent(buffer, BUFSIZ, format, events[0]);
@@ -449,41 +447,9 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 
    pthread_mutex_lock( &riemann_mutex );
    error = riemann_client_send_message(&riemann_cli, &msg, 0, NULL);
+   riemann_events_free(events, 1);
    pthread_mutex_unlock( &riemann_mutex );
 
-   if (!strcmp(gmetad_config.riemann_protocol, "tcp") && error)
-      err_msg("[riemann] Can't send message: %s", strerror(errno));
-
-   if (!strcmp(gmetad_config.riemann_protocol, "tcp"))
-     {
-       resp = riemann_client_recv_message(&riemann_cli, 0, NULL);
-       if (!resp)
-         {
-           err_msg("[riemann] riemann_client_recv_message() got no response\n");
-           riemann_events_free(events, 1);
-           return EXIT_FAILURE;
-         }
-       if (!resp->ok)
-         {
-           err_msg("[riemann] riemann message error: %s\n", resp->error);
-           riemann_events_free(events, 1);
-           return EXIT_FAILURE;
-         }
-       for (int i = 0; i < resp->n_events; i++)
-         {
-           char buffer[BUFSIZ];
-           static char *format = "[riemann] %T host=%h,service=%s,state=%S,metric_f=%mf,metric_d=%md,metric_sint64=%mi,ttl=%t,tags=%G,attributes=%a";
-           error = riemann_event_strfevent(buffer, BUFSIZ, format, resp->events[i]);
-           if (error)
-             {
-               err_msg("[riemann] riemann_event_strfevent() error");
-               return EXIT_FAILURE;
-            }
-            debug_msg(buffer);
-        }
-        riemann_message_free(resp);
-     }
-   riemann_events_free(events, 1);
    return EXIT_SUCCESS;
 
 }
