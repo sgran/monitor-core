@@ -537,7 +537,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
             int rm_ret = 0;
             rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
                                            xmldata->hostname, getfield(host->strings, host->ip), "heartbeat", value, NULL,
-                                           xmldata->source.localtime, getfield(host->strings, host->tags), tmax);
+                                           xmldata->source.localtime, getfield(host->strings, host->tags), tmax * 4);
 
             if (rm_ret)
                 err_msg("[riemann] Could not send heartbeat metric to Riemann");
