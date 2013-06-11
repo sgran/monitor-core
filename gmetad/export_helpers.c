@@ -411,6 +411,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    int n_tags;
    tags = strtoknize(tags_str, strlen(tags_str) + 1, ",", 1, &n_tags);
    riemann_event_set_tags(events[0], (const char **)tags, n_tags);
+   free(tags);
 
    riemann_attribute_pairs_t *pairs = NULL;
    int n_attrs;
@@ -433,8 +434,10 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            free(pair[1]);
            free(pair);
        }
+       free(attrs);
    } while (0);
    riemann_event_set_attributes(events[0], pairs, n_attrs);
+   free(pairs);
 
    riemann_event_set_ttl(events[0], ttl);
    riemann_message_set_events(&msg, events, 1);
