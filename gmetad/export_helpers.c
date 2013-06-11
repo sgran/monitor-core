@@ -413,6 +413,11 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
    riemann_event_set_tags(events[0], (const char **)tags, n_tags);
    free(tags);
 
+   for(int i = 0; i < n_tags; i++) {
+      free(tags[i]);
+   }
+   free(tags);
+
    riemann_attribute_pairs_t *pairs = NULL;
    int n_attrs;
 
@@ -437,6 +442,12 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
        free(attrs);
    } while (0);
    riemann_event_set_attributes(events[0], pairs, n_attrs);
+   free(pairs);
+
+   for(int i = 0; i < n_attrs; i++) {
+      free(pairs[i].key);
+      free(pairs[i].value);
+   }
    free(pairs);
 
    riemann_event_set_ttl(events[0], ttl);
