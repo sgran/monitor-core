@@ -404,6 +404,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
    int i;
    Host_t *host;
    hash_t *hosts;  
+   int carbon_ret;
 
    /* Check if the host is up. */
    for (i = 0; attr[i]; i+=2)
@@ -524,13 +525,16 @@ startElement_HOST(void *data, const char *el, const char **attr)
       }
    host->stringslen = edge;
 
+        char value[12];
+        sprintf(value, "%d", reported);
+
+        if (gmetad_config.carbon_server)
+             carbon_ret=write_data_to_carbon(xmldata->sourcename, xmldata->hostname, "heartbeat", value, xmldata->source.localtime);
+
 #ifdef WITH_RIEMANN
 
         /* Forward heartbeat metric to Riemann */
         if (gmetad_config.riemann_server) {
-
-            char value[12];
-            sprintf(value, "%d", reported);
 
             debug_msg("[riemann] Sending host %s, metric heartbeat", xmldata->hostname);
 
