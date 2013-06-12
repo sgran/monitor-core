@@ -46,7 +46,7 @@ Curl_write_callback(void *contents, size_t size, size_t nmemb, void *userp)
 
   memcpy(&(mem->memory[mem->size]), contents, realsize);
   mem->size += realsize;
-  mem->memory[mem->size] = 0;
+  mem->memory[mem->size] = '\0';
 
   return realsize;
 }
@@ -196,8 +196,10 @@ Ganglia_udp_send_channels_discover(Ganglia_pool p, Ganglia_gmond_config config)
         {
           err_msg("[discovery.%s] curl_easy_perform() failed: %s", discovery_type, curl_easy_strerror(res));
           curl_easy_cleanup(curl_handle);
-          if (chunk.memory)
+          if (chunk.memory) {
             free(chunk.memory);
+            chunk.memory = NULL;
+          }
           return (Ganglia_udp_send_channels) discovered_udp_send_channels;
         }
 
