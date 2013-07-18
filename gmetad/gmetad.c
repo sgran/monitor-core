@@ -355,11 +355,6 @@ main ( int argc, char *argv[] )
          daemon_init (argv[0], 0, rrd_umask);
       }
 
-   if (args_info.pid_file_given)
-     {
-       update_pidfile (args_info.pid_file_arg);
-     }
-
    /* The rrd_rootdir must be writable by the gmetad process */
    if( c->should_setuid )
       {
@@ -463,6 +458,11 @@ main ( int argc, char *argv[] )
    /* A thread to cleanup old metrics and hosts */
    pthread_create(&pid, &attr, cleanup_thread, (void *) NULL);
    debug_msg("cleanup thread has been started");
+
+   if (args_info.pid_file_given)
+     {
+       update_pidfile (args_info.pid_file_arg);
+     }
 
     /* Meta data */
    last_metadata = 0;
