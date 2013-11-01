@@ -32,6 +32,8 @@ typedef struct
       int num_RRAs;
       char *RRAs[MAX_RRAS];
       int case_sensitive_hostnames;
+      int walk_hosts;
+      int walk_hosts_port;
       int shortest_step;
 } gmetad_config_t;
 

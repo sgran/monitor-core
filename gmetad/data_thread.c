@@ -39,16 +39,6 @@ data_thread ( void *arg )
    rand_seed = apr_time_now() * (int)pthread_self();
    for(i = 0; d->name[i] != 0; rand_seed = rand_seed * d->name[i++]);
  
-   if(get_debug_msg_level())
-      {
-         fprintf(stderr,"Data thread %lu is monitoring [%s] data source\n", (unsigned long)pthread_self(), d->name);
-         for(i = 0; i < d->num_sources; i++)
-            {
-               addr = d->sources[i];
-               fprintf(stderr, "\t%s\n", addr->name);
-            }
-      }
-
    key.data = d->name;
    key.size = strlen( key.data ) + 1;
 
@@ -66,6 +56,16 @@ data_thread ( void *arg )
          start = apr_time_now();
          sock = NULL;
          
+         if(get_debug_msg_level())
+           {
+             fprintf(stderr,"Data thread %lu is monitoring [%s] data source\n", (unsigned long)pthread_self(), d->name);
+             for(i = 0; i < d->num_sources; i++)
+              {
+                addr = d->sources[i];
+                fprintf(stderr, "\t%s\n", addr->name);
+              }
+           }
+
          /* If we successfully read from a good data source last time then try the same host again first. */
          if(d->last_good_index != -1)
            sock = g_tcp_socket_new ( d->sources[d->last_good_index] );
@@ -98,6 +98,8 @@ data_thread ( void *arg )
 
          struct_poll.fd = sock->sockfd;
          struct_poll.events = POLLIN; 
+
+         debug_msg(">>>>>>> Polling %s for data source %s", d->sources[d->last_good_index]->name, d->name);
 
          read_index = 0;
          for(;;)
@@ -293,6 +295,8 @@ data_thread ( void *arg )
                 */
                goto take_a_break;
             }
+
+         debug_msg("Data thread %lu has processed [%s] data source\n", (unsigned long)pthread_self(), d->name);
 
          /* We processed all the data.  Mark this source as alive */
          d->dead = 0;

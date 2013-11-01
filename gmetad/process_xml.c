@@ -8,6 +8,8 @@
 #include "rrd_helpers.h"
 #include "export_helpers.h"
 
+#define GANGLIA_HOSTNAME_LEN 128
+
 extern int zero_out_summary(datum_t *key, datum_t *val, void *arg);
 extern char* getfield(char *buf, short int index);
 
@@ -53,7 +55,6 @@ typedef struct
       struct timeval now;
 }
 xmldata_t;
-
 
 /* Authority mode is true if we are within the first level GRID. */
 static int
@@ -266,6 +267,8 @@ startElement_GRID(void *data, const char *el, const char **attr)
 }
 
 
+uint32_t most_recent_started;
+
 static int
 startElement_CLUSTER(void *data, const char *el, const char **attr)
 {
@@ -352,6 +355,13 @@ startElement_CLUSTER(void *data, const char *el, const char **attr)
 
    /* Edge has the same invariant as in fillmetric(). */
    edge = 0;
+
+   if (gmetad_config.walk_hosts)
+      {
+         xmldata->ds->num_sources = 0;
+         xmldata->ds->last_good_index = -1;
+         most_recent_started = 0;
+      }
 
    source->owner = -1;
    source->latlong = -1;
@@ -517,12 +527,47 @@ startElement_HOST(void *data, const char *el, const char **attr)
 		  break;
                case STARTED_TAG:
                   host->started = strtoul(attr[i+1], (char **)NULL, 10);
+                  debug_msg("[walk] %s host started at %zu", getfield(host->strings, host->ip), host->started);
                   break;
                default:
                   break;
             }
       }
    host->stringslen = edge;
+
+   if (gmetad_config.walk_hosts)
+      {
+         debug_msg("[walk] Adding %s to [%s] data source", getfield(host->strings, host->ip), xmldata->ds->name);
+
+         struct sockaddr_in sa;
+         int rv = g_gethostbyname( getfield(host->strings, host->ip), &sa, NULL);
+         if (!rv) {
+            err_msg("Warning: we failed to resolve data source name %s", getfield(host->strings, host->ip));
+         }
+         char *str = (char*) malloc(GANGLIA_HOSTNAME_LEN);
+         my_inet_ntop(AF_INET, &sa.sin_addr, str, GANGLIA_HOSTNAME_LEN);
+
+         int port;
+         if (gmetad_config.walk_hosts_port)
+            port = gmetad_config.walk_hosts_port;
+         else
+            port = 8649;
+
+         xmldata->ds->sources = realloc(xmldata->ds->sources, sizeof(g_inet_addr *)*(xmldata->ds->num_sources+1));
+         xmldata->ds->sources[xmldata->ds->num_sources] = (g_inet_addr *) g_inetaddr_new ( str, port );
+         if(! xmldata->ds->sources[xmldata->ds->num_sources])
+               err_quit("Unable to create inetaddr [%s:%d] and save it to [%s]", str, port, xmldata->ds->name);
+         free(str);
+
+         if (xmldata->host_alive && host->started >= most_recent_started)
+            {
+               xmldata->ds->last_good_index = xmldata->ds->num_sources;
+               debug_msg("[walk] Update last good index to %d", xmldata->ds->last_good_index);
+               most_recent_started = host->started;
+            }
+
+         xmldata->ds->num_sources++;
+      }
 
    /* Trim structure to the correct length. */
    hashval.size = sizeof(*host) - GMETAD_FRAMESIZE + host->stringslen;
