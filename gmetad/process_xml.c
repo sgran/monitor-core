@@ -573,11 +573,12 @@ startElement_HOST(void *data, const char *el, const char **attr)
         /* Forward heartbeat metric to Riemann */
         if (gmetad_config.riemann_server) {
 
-            debug_msg("[riemann] Sending host %s, metric heartbeat", xmldata->hostname);
+            char value[12];
+            sprintf(value, "%d", reported);
 
             int rm_ret = 0;
             rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
-                                           xmldata->hostname, getfield(host->strings, host->ip), "heartbeat", value, NULL,
+                                           xmldata->hostname, getfield(host->strings, host->ip), "heartbeat", value, "int", "seconds", NULL,
                                            xmldata->source.localtime, getfield(host->strings, host->tags), tmax * 4);
 
             if (rm_ret)
@@ -647,6 +648,7 @@ startElement_METRIC(void *data, const char *el, const char **attr)
    const char *name = NULL;
    const char *metricval = NULL;
    const char *type = NULL;
+   const char *units = NULL;
    int do_summary;
    int i, edge, carbon_ret;
    hash_t *summary;
@@ -672,6 +674,9 @@ startElement_METRIC(void *data, const char *el, const char **attr)
                   break;
                case TYPE_TAG:
                   type = attr[i+1];
+                  break;
+               case UNITS_TAG:
+                  units = attr[i+1];
                   break;
                case SLOPE_TAG:
                   slope = cstr_to_slope(attr[i+1]);
@@ -708,16 +713,19 @@ startElement_METRIC(void *data, const char *el, const char **attr)
             host = &(xmldata->host);
             int rm_ret = 0;
 
-            debug_msg("[riemann] Sending host %s, metric %s", xmldata->hostname, name);
-
-            if (do_summary)
-               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
-                                              xmldata->hostname, getfield(host->strings, host->ip), name, metricval, NULL,  /* int or float => metric */
+            if (tt->type == INT || tt->type == UINT) {
+               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
+                                              getfield(host->strings, host->ip), name, metricval, "int", units, NULL,  /* int or uint => metric_sint64 */
                                               xmldata->source.localtime, getfield(host->strings, host->tags), metric->tmax);
-            else
-               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename,
-                                              xmldata->hostname, getfield(host->strings, host->ip), name, NULL, metricval,       /* string => state */
+            } else if (tt->type == FLOAT) {
+               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
+                                              getfield(host->strings, host->ip), name, metricval, "float", units, NULL, /* float => metric_d */
                                               xmldata->source.localtime, getfield(host->strings, host->tags), metric->tmax);
+            } else {
+               rm_ret = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
+                                              getfield(host->strings, host->ip), name, metricval, "string", units, NULL,  /* string => state */
+                                              xmldata->source.localtime, getfield(host->strings, host->tags), metric->tmax);
+            }
             if (rm_ret)
                 err_msg("[riemann] Could not send %s metric to Riemann", name);
         }
@@ -737,9 +745,9 @@ startElement_METRIC(void *data, const char *el, const char **attr)
 		  if (gmetad_config.memcached_parameters) {
                      int mc_ret=write_data_to_memcached(xmldata->sourcename, xmldata->hostname, name, metricval, xmldata->source.localtime, metric->dmax);
 		  }
-
 #endif /* WITH_MEMCACHED */
             }
+
          metric->id = METRIC_NODE;
          metric->report_start = metric_report_start;
          metric->report_end = metric_report_end;
