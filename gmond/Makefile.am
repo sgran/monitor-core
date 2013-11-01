@@ -35,6 +35,9 @@ endif
 if BUILD_SFLOW
 GCFLAGS += -DSFLOW
 endif
+if BUILD_CLOUD
+GCFLAGS += -DCLOUD
+endif
 
 INCLUDES = @APR_INCLUDES@
 AM_CFLAGS = -I$(top_builddir)/lib -I$(top_builddir)/include/ -I$(top_builddir)/libmetrics $(GCFLAGS)
