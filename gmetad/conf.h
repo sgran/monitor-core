@@ -13,6 +13,7 @@ typedef struct
       int server_threads;
       int umask;
       llist_entry *trusted_hosts;
+      int unsummarized_sflow_vm_metrics;
       llist_entry *unsummarized_metrics;
       int debug_level;
       int should_setuid;
@@ -30,6 +31,10 @@ typedef struct
       int all_trusted;
       int num_RRAs;
       char *RRAs[MAX_RRAS];
+      char *riemann_server;
+      int riemann_port;
+      char *riemann_protocol;
+      char *riemann_attributes;
       int case_sensitive_hostnames;
       int shortest_step;
 } gmetad_config_t;

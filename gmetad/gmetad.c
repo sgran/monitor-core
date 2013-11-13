@@ -41,6 +41,10 @@ extern struct type_tag* in_type_list (char *, unsigned int);
 
 extern g_udp_socket *carbon_udp_socket;
 
+#ifdef WITH_RIEMANN
+extern g_udp_socket *riemann_udp_socket;
+#endif /* WITH_RIEMANN */
+
 struct gengetopt_args_info args_info;
 
 extern gmetad_config_t gmetad_config;
@@ -230,6 +234,7 @@ write_root_summary(datum_t *key, datum_t *val, void *arg)
    int rc;
    struct type_tag *tt;
    llist_entry *le;
+   char *p;
 
    name = (char*) key->data;
    metric = (Metric_t*) val->data;
@@ -244,6 +249,10 @@ write_root_summary(datum_t *key, datum_t *val, void *arg)
    /* Don't write a summary for metrics not to be summarized */
    if (llist_search(&(gmetad_config.unsummarized_metrics), (void *)key->data, llist_strncmp, &le) == 0)
        return 0;
+
+   /* Don't write a summary for metris that appears to be sFlow VM metrics */
+   if (gmetad_config.unsummarized_sflow_vm_metrics && (p = strchr(name, '.')) != NULL && *(p+1) == 'v')
+     return 0;
 
    /* We log all our sums in double which does not suffer from
       wraparound errors: for example memory KB exceeding 4TB. -twitham */
@@ -436,6 +445,22 @@ main ( int argc, char *argv[] )
             }
          debug_msg("carbon forwarding ready to send via %s to %s:%d", c->carbon_protocol, c->carbon_server, c->carbon_port);
       }
+
+#ifdef WITH_RIEMANN
+    if (c->riemann_server !=NULL)
+      {
+         if (!strcmp(c->riemann_protocol, "udp"))
+            {
+               riemann_udp_socket = init_riemann_udp_socket (c->riemann_server, c->riemann_port);
+
+               if (riemann_udp_socket == NULL)
+                  err_quit("[riemann] %s socket failed for %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
+            } else {
+               err_quit("[riemann] TCP transport not supported yet.");
+            }
+         debug_msg("[riemann] ready to forward metrics via %s to %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
+      }
+#endif /* WITH_RIEMANN */
 
    /* initialize summary mutex */
    root.sum_finished = (pthread_mutex_t *) 

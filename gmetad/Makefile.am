@@ -23,13 +23,17 @@ gmetad_SOURCES =  gmetad.c cmdline.c.in cmdline.c cmdline.h gmetad.h data_thread
    server.c process_xml.c rrd_helpers.c export_helpers.c conf.c conf.h type_hash.c \
    xml_hash.c cleanup.c rrd_helpers.h export_helpers.h daemon_init.c daemon_init.h \
 	 server_priv.h  
+if BUILD_RIEMANN
+  gmetad_SOURCES += riemann.pb-c.h riemann.pb-c.c
+endif
+
 gmetad_LDADD   = $(top_builddir)/lib/libganglia.la -lrrd -lm \
                  $(GLDADD) $(DEPS_LIBS)
 
 gmetad_LDFLAGS = $(GLDFLAGS)
 
 EXTRA_DIST = gmetad.aix.init gmetad.conf.in gmetad.init gmetad.init.SuSE \
-    type_hash.gperf xml_hash.gperf gmetad-default cmdline.sh
+    type_hash.gperf xml_hash.gperf gmetad-default cmdline.sh gmetad.service.in
 
 xml_hash.c: xml_hash.gperf
 	gperf -l -H xml_hash -t -F ', 0' -N in_xml_list -k '1,$$' -W xml_tags xml_hash.gperf > xml_hash.c
