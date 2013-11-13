@@ -43,6 +43,7 @@ extern g_udp_socket *carbon_udp_socket;
 
 #ifdef WITH_RIEMANN
 extern g_udp_socket *riemann_udp_socket;
+extern g_tcp_socket *riemann_tcp_socket;
 #endif /* WITH_RIEMANN */
 
 struct gengetopt_args_info args_info;
@@ -456,9 +457,13 @@ main ( int argc, char *argv[] )
                if (riemann_udp_socket == NULL)
                   err_quit("[riemann] %s socket failed for %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
             } else {
-               err_quit("[riemann] TCP transport not supported yet.");
+
+                riemann_tcp_socket = init_riemann_tcp_socket (c->riemann_server, c->riemann_port);
+
+               if (riemann_tcp_socket == NULL)
+                  err_msg("[riemann] %s socket failed for %s:%d. Retrying...", c->riemann_protocol, c->riemann_server, c->riemann_port);
             }
-         debug_msg("[riemann] ready to forward metrics via %s to %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
+         debug_msg("[riemann] Ganglia configured to forward metrics via %s to %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
       }
 #endif /* WITH_RIEMANN */
 

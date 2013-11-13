@@ -17,6 +17,10 @@ extern hash_t *xml;
 
 extern hash_t *root;
 
+#ifdef WITH_RIEMANN
+extern g_tcp_socket *riemann_tcp_socket;
+#endif /* WITH_RIEMANN */
+
 extern int process_xml(data_source_list_t *, char *);
 
 void *
@@ -283,6 +287,11 @@ data_thread ( void *arg )
 	   }
 
          buf[read_index] = '\0';
+
+#ifdef WITH_RIEMANN
+         if (riemann_tcp_socket == NULL)
+            riemann_tcp_socket = init_riemann_tcp_socket (c->riemann_server, c->riemann_port);
+#endif /* WITH_RIEMANN */
 
          /* Parse the buffer */
          rval = process_xml(d, buf);
