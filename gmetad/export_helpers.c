@@ -80,7 +80,7 @@ init_riemann_udp_socket (const char *hostname, uint16_t port)
    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
    if (sockfd < 0)
       {
-         err_msg("create socket (client): %s", strerror(errno));
+         err_msg("[riemann] create socket (client): %s", strerror(errno));
          return NULL;
       }
 
@@ -95,50 +95,6 @@ init_riemann_udp_socket (const char *hostname, uint16_t port)
    sa_in->sin_port = htons (port);
    hostinfo = gethostbyname (hostname);
    sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
-
-   return s;
-}
-
-g_tcp_socket*
-init_riemann_tcp_socket (const char *hostname, uint16_t port)
-{
-   int sockfd;
-   g_tcp_socket* s;
-   struct sockaddr_in *sa_in;
-   struct hostent *hostinfo;
-
-   sockfd = socket(AF_INET, SOCK_STREAM, 0);
-   if (sockfd < 0)
-      {
-         err_msg("create socket (client): %s", strerror(errno));
-         return NULL;
-      }
-
-    /* set to non-blocking */
-   long flags = fcntl(sockfd, F_GETFL, 0);
-   fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
-
-   s = malloc( sizeof( g_tcp_socket ) );
-   memset( s, 0, sizeof( g_tcp_socket ));
-   s->sockfd = sockfd;
-   s->ref_count = 1;
-
-   /* Set up address and port for connection */
-   sa_in = (struct sockaddr_in*) &s->sa;
-   sa_in->sin_family = AF_INET;
-   sa_in->sin_port = htons (port);
-   hostinfo = gethostbyname (hostname);
-   sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
-
-   if (connect(sockfd, (struct sockaddr *) &sa_in, sizeof(struct sockaddr)) < 0)
-      {
-         if (errno != EINPROGRESS) {
-            err_msg("Connection failed.");
-            return NULL;
-         } else {
-            debug_msg("Connection in progress...");
-         }
-      }
 
    return s;
 }
@@ -554,22 +510,25 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
   debug_msg("[riemann] %zu host=%s, service=%s, state=%s, metric_f=%f, metric_d=%lf, metric_sint64=%" PRId64 ", description=%s, ttl=%f, tags(%zu), attributes(%zu)",
             evt.time, evt.host, evt.service, evt.state, evt.metric_f, evt.metric_d, evt.metric_sint64, evt.description, evt.ttl, evt.n_tags, evt.n_attributes);
 
-  int nbytes;
+  int nbytes = 0;
   if (riemann_udp_socket)
      {
+        debug_msg("[riemann] Sending metric via UDP...");
         nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
                              (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
 
      } else if (riemann_tcp_socket) {
 
+        debug_msg("[riemann] Sending metric via TCP...");
         nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
+     } else {
+        err_msg("[riemann] No socket available for sending metric data.");
      }
 
-  if (nbytes != len)
+  if (nbytes == -1)
      {
         err_msg("[riemann] socket error (client): %s", strerror(errno));
-        return EXIT_FAILURE;
-     } else {
+     } else if (nbytes == len) {
         debug_msg("[riemann] Sent %d serialized bytes", len);
      }
 

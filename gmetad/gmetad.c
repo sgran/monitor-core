@@ -458,7 +458,7 @@ main ( int argc, char *argv[] )
                   err_quit("[riemann] %s socket failed for %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
             } else {
 
-                riemann_tcp_socket = init_riemann_tcp_socket (c->riemann_server, c->riemann_port);
+                riemann_tcp_socket = g_tcp_socket_new ((g_inet_addr *) g_inetaddr_new ( c->riemann_server, c->riemann_port));
 
                if (riemann_tcp_socket == NULL)
                   err_msg("[riemann] %s socket failed for %s:%d. Retrying...", c->riemann_protocol, c->riemann_server, c->riemann_port);
