@@ -17,11 +17,14 @@ extern hash_t *xml;
 
 extern hash_t *root;
 
+extern gmetad_config_t gmetad_config;
+
 #ifdef WITH_RIEMANN
 extern g_tcp_socket *riemann_tcp_socket;
 #endif /* WITH_RIEMANN */
 
 extern int process_xml(data_source_list_t *, char *);
+extern g_tcp_socket* init_riemann_tcp_socket (const char *, uint16_t);
 
 void *
 data_thread ( void *arg )
@@ -290,7 +293,7 @@ data_thread ( void *arg )
 
 #ifdef WITH_RIEMANN
          if (riemann_tcp_socket == NULL)
-            riemann_tcp_socket = init_riemann_tcp_socket (c->riemann_server, c->riemann_port);
+            riemann_tcp_socket = init_riemann_tcp_socket (gmetad_config.riemann_server, gmetad_config.riemann_port);
 #endif /* WITH_RIEMANN */
 
          /* Parse the buffer */

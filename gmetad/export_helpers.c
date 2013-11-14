@@ -130,7 +130,7 @@ init_riemann_tcp_socket (const char *hostname, uint16_t port)
    hostinfo = gethostbyname (hostname);
    sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
 
-   if (connect(sockfd, (struct sockaddr *) &remote_addr, sizeof(remote_addr)) < 0)
+   if (connect(sockfd, (struct sockaddr *) &sa_in, sizeof(struct sockaddr)) < 0)
       {
          if (errno != EINPROGRESS) {
             err_msg("Connection failed.");
