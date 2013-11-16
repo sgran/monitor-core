@@ -457,11 +457,12 @@ main ( int argc, char *argv[] )
                if (riemann_udp_socket == NULL)
                   err_quit("[riemann] %s socket failed for %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
             } else {
-
                 riemann_tcp_socket = g_tcp_socket_new ((g_inet_addr *) g_inetaddr_new ( c->riemann_server, c->riemann_port));
-
-               if (riemann_tcp_socket == NULL)
-                  err_msg("[riemann] %s socket failed for %s:%d. Retrying...", c->riemann_protocol, c->riemann_server, c->riemann_port);
+                if (riemann_tcp_socket < 0) {
+                   riemann_circuit_breaker = RIEMANN_CB_OPEN;
+                } else {
+                   riemann_circuit_breaker = RIEMANN_CB_CLOSED;
+                }
             }
          debug_msg("[riemann] Ganglia configured to forward metrics via %s to %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
       }
@@ -488,6 +489,12 @@ main ( int argc, char *argv[] )
    /* A thread to cleanup old metrics and hosts */
    pthread_create(&pid, &attr, cleanup_thread, (void *) NULL);
    debug_msg("cleanup thread has been started");
+
+#ifdef WITH_RIEMANN
+   /* A thread to repoll riemann TCP port if circuit breaker tripped */
+   pthread_create(&pid, &attr, circuit_breaker_thread, (void *) NULL);
+   debug_msg("[riemann] circuit breaker thread has been started");
+#endif /* WITH_RIEMANN */
 
     /* Meta data */
    last_metadata = 0;

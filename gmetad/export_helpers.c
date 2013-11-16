@@ -24,6 +24,16 @@
 
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
+
+#define RIEMANN_CB_OPEN 0
+#define RIEMANN_CB_HALF_OPEN 1
+#define RIEMANN_CB_CLOSED 2
+
+#define RIEMANN_TIMEOUT 60
+#define RIEMANN_MAX_FAILURES 5
+
+int riemann_reset_timeout = 0;
+int riemann_failures = 0;
 #endif /* WITH_RIEMANN */
 
 #include "export_helpers.h"
@@ -97,6 +107,62 @@ init_riemann_udp_socket (const char *hostname, uint16_t port)
    sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
 
    return s;
+}
+
+g_tcp_socket*
+init_riemann_tcp_socket (const char *hostname, uint16_t port)
+{
+  printf ("Connecting to %s:%d\n", server, port);
+
+  int sockfd = socket (AF_INET, SOCK_STREAM, 0);
+  if (sockfd < 0) {
+    perror ("Could not open socket");
+    return -1;
+  }
+  else {
+    printf ("Socket created!\n");
+  }
+
+  struct sockaddr_in remote_addr = { };
+  remote_addr.sin_family = AF_INET;
+  remote_addr.sin_port = htons (port);
+
+  if (inet_aton (server, &remote_addr.sin_addr) <= 0) {
+    perror ("inet_aton failed");
+    return -1;
+  }
+
+  if (riemann_tcp_socket)
+    close (riemann_tcp_socket);
+
+  // set to non-blocking
+  long flags = fcntl (sockfd, F_GETFL, 0);
+  fcntl (sockfd, F_SETFL, flags | O_NONBLOCK);
+
+  connect (sockfd, (struct sockaddr *) &remote_addr, sizeof (remote_addr));
+
+  struct pollfd pfd;
+
+  pfd.fd = sockfd;
+  pfd.events = POLLOUT;
+  int rv = poll (&pfd, 1, 200);
+
+  if (rv < 0) {
+    printf ("poll() error\n");
+    return -1;
+  }
+  else if (rv == 0) {
+    printf ("timeout\n");
+    return -1;
+  }
+
+  if (pfd.revents & POLLOUT) {
+    printf("socket ready!\n");
+    /* fcntl (sockfd, F_SETFL, flags); */
+    return sockfd;
+  } else {
+    return -1;
+  }
 }
 #endif /* WITH_RIEMANN */
 
@@ -511,26 +577,67 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
             evt.time, evt.host, evt.service, evt.state, evt.metric_f, evt.metric_d, evt.metric_sint64, evt.description, evt.ttl, evt.n_tags, evt.n_attributes);
 
   int nbytes = 0;
-  if (riemann_udp_socket)
-     {
-        debug_msg("[riemann] Sending metric via UDP...");
-        nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
-                             (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
+  if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
+    if (!strcmp (riemann_protocol, "udp")) {
 
-     } else if (riemann_tcp_socket) {
+      void *buf;
+      len = msg__get_packed_size (&riemann_msg);
+      buf = malloc (len);
+      msg__pack (&riemann_msg, buf);
 
-        debug_msg("[riemann] Sending metric via TCP...");
-        nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
-     } else {
-        err_msg("[riemann] No socket available for sending metric data.");
-     }
+      nbytes = sendto (riemann_tcp_socket, buf, len, 0, (struct sockaddr *) &servaddr, sizeof (servaddr));
+      free (buf);
+    } else {
+      printf ("[riemann] Sending metric via TCP...");
+      struct
+      {
+        uint32_t header;
+        uint8_t data[0];
+      } *buf;
 
-  if (nbytes == -1)
-     {
-        err_msg("[riemann] socket error (client): %s", strerror(errno));
-     } else if (nbytes == len) {
-        debug_msg("[riemann] Sent %d serialized bytes", len);
-     }
+      len = msg__get_packed_size (&riemann_msg) + sizeof (buf->header);
+      buf = malloc (len);
+      msg__pack (&riemann_msg, buf->data);
+      buf->header = htonl (len - sizeof (buf->header));
+
+      nbytes = send (riemann_tcp_socket, buf, len, 0);
+      free (buf);
+
+      Msg *msg;
+      uint32_t header, len;
+      uint8_t *buffer;
+      ssize_t response;
+
+      printf ("wait for response...\n");
+      response = recv (riemann_tcp_socket, &header, sizeof (header), 0);
+      if (response != sizeof (header)) {
+        printf ("[riemann] error in response\n");
+      } else {
+        len = ntohl (header);
+        printf ("header is %d\n", len);
+        buffer = malloc (len);
+        response = recv (riemann_tcp_socket, buffer, len, 0);
+        msg = msg__unpack (NULL, len, buffer);
+        printf ("ok %d\n", msg->ok);
+        free (buffer);
+      }
+    }
+
+    if (nbytes != len) {
+      fprintf (stderr, "[riemann] sendto socket (client): %s\n", strerror (errno));
+      riemann_failures++;
+      if (riemann_failures > RIEMANN_MAX_FAILURES) {
+        riemann_circuit_breaker = RIEMANN_CB_OPEN;
+        riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT;      /* 60 seconds */
+      }
+      return EXIT_FAILURE;
+    } else {
+      riemann_failures = 0;
+      printf ("[riemann] Sent %d serialized bytes\n", len);
+    }
+  } else if (riemann_circuit_breaker == RIEMANN_CB_OPEN) {
+    printf ("[riemann] Circuit breaker OPEN... Not sending metric via TCP! Riemann DOWN!!!\n");
+  }
 
   for (i = 0; i < evt.n_attributes; i++) {
      free(attrs[i]->key);
