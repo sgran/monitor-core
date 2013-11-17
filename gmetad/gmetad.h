@@ -260,4 +260,8 @@ memcached_pool_st* memcached_connection_pool;
 
 #define RIEMANN_TIMEOUT 60
 #define RIEMANN_MAX_FAILURES 5
+
+int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
+int riemann_reset_timeout = 0;
+int riemann_failures = 0;
 #endif /* WITH_RIEMANN */

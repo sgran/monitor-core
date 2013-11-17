@@ -24,10 +24,6 @@
 
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
-
-int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
-int riemann_reset_timeout = 0;
-int riemann_failures = 0;
 #endif /* WITH_RIEMANN */
 
 #include "export_helpers.h"
