@@ -44,6 +44,9 @@ extern g_udp_socket *carbon_udp_socket;
 #ifdef WITH_RIEMANN
 extern g_udp_socket *riemann_udp_socket;
 extern g_tcp_socket *riemann_tcp_socket;
+
+extern void *circuit_breaker_thread(void *arg);
+extern int riemann_circuit_breaker;
 #endif /* WITH_RIEMANN */
 
 struct gengetopt_args_info args_info;
@@ -456,13 +459,15 @@ main ( int argc, char *argv[] )
 
                if (riemann_udp_socket == NULL)
                   err_quit("[riemann] %s socket failed for %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
-            } else {
-                riemann_tcp_socket = g_tcp_socket_new ((g_inet_addr *) g_inetaddr_new ( c->riemann_server, c->riemann_port));
-                if (riemann_tcp_socket < 0) {
+            } else if (!strcmp(c->riemann_protocol, "tcp")) {
+                riemann_tcp_socket = init_riemann_tcp_socket (c->riemann_server, c->riemann_port);
+                if (riemann_tcp_socket == NULL) {
                    riemann_circuit_breaker = RIEMANN_CB_OPEN;
                 } else {
                    riemann_circuit_breaker = RIEMANN_CB_CLOSED;
                 }
+            } else {
+                err_quit("ERROR: Riemann protocol must be 'udp' or 'tcp'");
             }
          debug_msg("[riemann] Ganglia configured to forward metrics via %s to %s:%d", c->riemann_protocol, c->riemann_server, c->riemann_port);
       }
