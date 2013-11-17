@@ -30,14 +30,12 @@ extern int riemann_failures;
 extern g_tcp_socket* init_riemann_tcp_socket (const char *hostname, uint16_t port);
 
 /* Interval (seconds) between runs */
-#define RIEMANN_CB_INTERVAL 1
+#define RIEMANN_CB_INTERVAL 10
 
 void *
 circuit_breaker_thread(void *arg)
 {
    for (;;) {
-
-      debug_msg("Circuit breaker thread running...");
 
       if (riemann_circuit_breaker == RIEMANN_CB_OPEN && riemann_reset_timeout < apr_time_now ()) {
 
@@ -55,7 +53,7 @@ circuit_breaker_thread(void *arg)
          }
       }
 
-      debug_msg("[riemann] circuit breaker is %s\n",
+      debug_msg("[riemann] circuit breaker is %s",
             riemann_circuit_breaker == RIEMANN_CB_OPEN ? "OPEN" :
             riemann_circuit_breaker == RIEMANN_CB_HALF_OPEN ? "HALF_OPEN"
             /* RIEMANN_CB_CLOSED */ : "CLOSED");
