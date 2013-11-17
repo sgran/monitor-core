@@ -17,12 +17,6 @@ extern hash_t *xml;
 
 extern hash_t *root;
 
-extern gmetad_config_t gmetad_config;
-
-#ifdef WITH_RIEMANN
-extern g_tcp_socket *riemann_tcp_socket;
-#endif /* WITH_RIEMANN */
-
 extern int process_xml(data_source_list_t *, char *);
 
 void *

@@ -47,6 +47,8 @@ extern g_tcp_socket *riemann_tcp_socket;
 
 extern void *circuit_breaker_thread(void *arg);
 extern int riemann_circuit_breaker;
+extern int riemann_reset_timeout;
+extern int riemann_failures;
 #endif /* WITH_RIEMANN */
 
 struct gengetopt_args_info args_info;
@@ -463,9 +465,12 @@ main ( int argc, char *argv[] )
                 riemann_tcp_socket = init_riemann_tcp_socket (c->riemann_server, c->riemann_port);
                 if (riemann_tcp_socket == NULL) {
                    riemann_circuit_breaker = RIEMANN_CB_OPEN;
+                   riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT;
                 } else {
                    riemann_circuit_breaker = RIEMANN_CB_CLOSED;
+                   riemann_failures = 0;
                 }
+
             } else {
                 err_quit("ERROR: Riemann protocol must be 'udp' or 'tcp'");
             }
@@ -496,9 +501,11 @@ main ( int argc, char *argv[] )
    debug_msg("cleanup thread has been started");
 
 #ifdef WITH_RIEMANN
-   /* A thread to repoll riemann TCP port if circuit breaker tripped */
-   pthread_create(&pid, &attr, circuit_breaker_thread, (void *) NULL);
-   debug_msg("[riemann] circuit breaker thread has been started");
+   if (!strcmp(c->riemann_protocol, "tcp")) {
+      /* A thread to repoll riemann TCP port if circuit breaker tripped */
+      pthread_create(&pid, &attr, circuit_breaker_thread, (void *) NULL);
+      debug_msg("[riemann] circuit breaker thread has been started");
+   }
 #endif /* WITH_RIEMANN */
 
     /* Meta data */

@@ -23,6 +23,12 @@ extern gmetad_config_t gmetad_config;
 
 extern g_tcp_socket *riemann_tcp_socket;
 
+extern int riemann_circuit_breaker;
+extern int riemann_reset_timeout;
+extern int riemann_failures;
+
+extern g_tcp_socket* init_riemann_tcp_socket (const char *hostname, uint16_t port);
+
 /* Interval (seconds) between runs */
 #define RIEMANN_CB_INTERVAL 1
 
