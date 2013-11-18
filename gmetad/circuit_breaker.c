@@ -6,18 +6,9 @@
 #include "config.h"
 #endif
 
-#include <string.h>
-#include <sys/time.h>
-#include <sys/resource.h>
-#include <unistd.h>
-
 #include <apr_time.h>
 
-#include "ganglia.h"
 #include "gmetad.h"
-
-#include "conf.h"
-#include "cmdline.h"
 
 extern gmetad_config_t gmetad_config;
 
@@ -30,7 +21,7 @@ extern int riemann_failures;
 extern g_tcp_socket* init_riemann_tcp_socket (const char *hostname, uint16_t port);
 
 /* Interval (seconds) between runs */
-#define RIEMANN_CB_INTERVAL 10
+#define CIRCUIT_BREAKER_INTERVAL 10
 
 void *
 circuit_breaker_thread(void *arg)
@@ -58,7 +49,7 @@ circuit_breaker_thread(void *arg)
             riemann_circuit_breaker == RIEMANN_CB_OPEN ?   "OPEN"
                               /* RIEMANN_CB_HALF_OPEN */ : "HALF_OPEN");
 
-      apr_sleep(apr_time_from_sec(RIEMANN_CB_INTERVAL));
+      apr_sleep(apr_time_from_sec(CIRCUIT_BREAKER_INTERVAL));
    }
 }
 
