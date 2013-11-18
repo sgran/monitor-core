@@ -47,7 +47,7 @@ extern g_tcp_socket *riemann_tcp_socket;
 
 extern void *circuit_breaker_thread(void *arg);
 extern int riemann_circuit_breaker;
-extern int riemann_reset_timeout;
+extern apr_time_t riemann_reset_timeout;
 extern int riemann_failures;
 #endif /* WITH_RIEMANN */
 
@@ -465,7 +465,7 @@ main ( int argc, char *argv[] )
                 riemann_tcp_socket = init_riemann_tcp_socket (c->riemann_server, c->riemann_port);
                 if (riemann_tcp_socket == NULL) {
                    riemann_circuit_breaker = RIEMANN_CB_OPEN;
-                   riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT;
+                   riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT * APR_USEC_PER_SEC;
                 } else {
                    riemann_circuit_breaker = RIEMANN_CB_CLOSED;
                    riemann_failures = 0;

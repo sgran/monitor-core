@@ -27,7 +27,7 @@
 #include "riemann.pb-c.h"
 
 int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
-int riemann_reset_timeout = 0;
+apr_time_t riemann_reset_timeout = 0;
 int riemann_failures = 0;
 #endif /* WITH_RIEMANN */
 
@@ -580,9 +580,10 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
              evt.ttl, evt.n_tags, evt.n_attributes);
 
   int nbytes = 0;
+  unsigned len = 0;
   if (!strcmp (gmetad_config.riemann_protocol, "udp")) {
      debug_msg ("[riemann] Sending metric via UDP transport...");
-     unsigned len = msg__get_packed_size (&riemann_msg);
+     len = msg__get_packed_size (&riemann_msg);
      void *buf = malloc (len);
      msg__pack (&riemann_msg, buf);
 
@@ -596,7 +597,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
           uint32_t header;
           uint8_t data[0];
         } *buf;
-        unsigned len = msg__get_packed_size (&riemann_msg) + sizeof (buf->header);
+        len = msg__get_packed_size (&riemann_msg) + sizeof (buf->header);
 
         buf = malloc (len);
         msg__pack (&riemann_msg, buf->data);
@@ -630,8 +631,8 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
      riemann_failures++;
      if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
         riemann_circuit_breaker = RIEMANN_CB_OPEN;
-        riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT;
-        err_msg("[riemann] %s send failures exceeds maximum of %d - circuit breaker is OPEN for %s seconds"
+        riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT * APR_USEC_PER_SEC;
+        err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
                  riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_TIMEOUT);
      }
      rv = EXIT_FAILURE;
@@ -652,7 +653,6 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
      free(tags[i]);
   }
   free(riemann_msg.events);
-  free(buf);
 
   pthread_mutex_unlock( &riemann_mutex );
   return rv;
