@@ -97,6 +97,8 @@ init_riemann_udp_socket (const char *hostname, uint16_t port)
    sa_in->sin_family = AF_INET;
    sa_in->sin_port = htons (port);
    hostinfo = gethostbyname (hostname);
+   if (hostinfo == NULL)
+      err_quit("Unknown host %s", hostname);
    sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
 
    return s;
@@ -123,9 +125,11 @@ init_riemann_tcp_socket (const char *hostname, uint16_t port)
    /* Set up address and port for connection */
    sa_in = (struct sockaddr_in*) &s->sa;
    sa_in->sin_family = AF_INET;
-   hostinfo = gethostbyname (hostname);
-   sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
    sa_in->sin_port = htons (port);
+   hostinfo = gethostbyname (hostname);
+   if (hostinfo == NULL)
+      err_quit("Unknown host %s", hostname);
+   sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
 
    if (riemann_tcp_socket)
       close (riemann_tcp_socket->sockfd);
