@@ -39,7 +39,7 @@ circuit_breaker_thread(void *arg)
 
       if (riemann_circuit_breaker == RIEMANN_CB_OPEN && riemann_reset_timeout < apr_time_now ()) {
 
-         printf ("Reset period expired, retry connection...\n");
+         debug_msg ("Reset period expired, retry connection...");
          riemann_circuit_breaker = RIEMANN_CB_HALF_OPEN;
 
          riemann_tcp_socket = init_riemann_tcp_socket (gmetad_config.riemann_server, gmetad_config.riemann_port);
@@ -48,15 +48,15 @@ circuit_breaker_thread(void *arg)
             riemann_circuit_breaker = RIEMANN_CB_OPEN;
             riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT;
          } else {
-           riemann_failures = 0;
-           riemann_circuit_breaker = RIEMANN_CB_CLOSED;
+            riemann_failures = 0;
+            riemann_circuit_breaker = RIEMANN_CB_CLOSED;
          }
       }
 
       debug_msg("[riemann] circuit breaker is %s",
-            riemann_circuit_breaker == RIEMANN_CB_OPEN ? "OPEN" :
-            riemann_circuit_breaker == RIEMANN_CB_HALF_OPEN ? "HALF_OPEN"
-            /* RIEMANN_CB_CLOSED */ : "CLOSED");
+            riemann_circuit_breaker == RIEMANN_CB_CLOSED ? "CLOSED" :
+            riemann_circuit_breaker == RIEMANN_CB_OPEN ?   "OPEN"
+                              /* RIEMANN_CB_HALF_OPEN */ : "HALF_OPEN");
 
       apr_sleep(apr_time_from_sec(RIEMANN_CB_INTERVAL));
    }
