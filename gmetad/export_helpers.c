@@ -26,6 +26,8 @@
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
 
+pthread_mutex_t  riemann_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
 apr_time_t riemann_reset_timeout = 0;
 int riemann_failures = 0;
@@ -72,7 +74,6 @@ init_carbon_udp_socket (const char *hostname, uint16_t port)
 #ifdef WITH_RIEMANN
 g_udp_socket *riemann_udp_socket;
 g_tcp_socket *riemann_tcp_socket;
-pthread_mutex_t  riemann_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 g_udp_socket*
 init_riemann_udp_socket (const char *hostname, uint16_t port)

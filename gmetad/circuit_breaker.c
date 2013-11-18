@@ -20,6 +20,8 @@ extern int riemann_failures;
 
 extern g_tcp_socket* init_riemann_tcp_socket (const char *hostname, uint16_t port);
 
+extern pthread_mutex_t  riemann_mutex;
+
 /* Interval (seconds) between runs */
 #define CIRCUIT_BREAKER_INTERVAL 10
 
@@ -29,6 +31,8 @@ circuit_breaker_thread(void *arg)
    for (;;) {
 
       if (riemann_circuit_breaker == RIEMANN_CB_OPEN && riemann_reset_timeout < apr_time_now ()) {
+
+         pthread_mutex_lock( &riemann_mutex );
 
          debug_msg ("[riemann] Reset period expired, retry connection...");
          riemann_circuit_breaker = RIEMANN_CB_HALF_OPEN;
@@ -42,6 +46,8 @@ circuit_breaker_thread(void *arg)
             riemann_failures = 0;
             riemann_circuit_breaker = RIEMANN_CB_CLOSED;
          }
+
+         pthread_mutex_unlock( &riemann_mutex );
       }
 
       debug_msg("[riemann] circuit breaker is %s (%d)",
