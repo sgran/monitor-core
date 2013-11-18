@@ -470,7 +470,6 @@ main ( int argc, char *argv[] )
                    riemann_circuit_breaker = RIEMANN_CB_CLOSED;
                    riemann_failures = 0;
                 }
-
             } else {
                 err_quit("ERROR: Riemann protocol must be 'udp' or 'tcp'");
             }
