@@ -135,33 +135,43 @@ init_riemann_tcp_socket (const char *hostname, uint16_t port)
 
    connect (sockfd, &s->sa, sizeof(s->sa));
 
-   struct pollfd pfd;
-   pfd.fd = sockfd;
-   pfd.events = POLLOUT;
-   rv = poll (&pfd, 1, 200);
+   struct pollfd pfds[0];
+   pfds[0].fd = sockfd;
+   pfds[0].events = POLLOUT;
+   rv = poll (pfds, 1, 200);
 
    if (rv < 0) {
-      err_msg ("poll() error\n");
+      err_msg ("ERROR: poll() error");
       close (sockfd);
       free (s);
       return NULL;
    } else if (rv == 0) {
-      err_msg ("timeout\n");
+      err_msg ("ERROR: timeout\n");
       close (sockfd);
       free (s);
       return NULL;
-   }
-
-   /* fcntl (sockfd, F_SETFL, flags); */ // NOTE: set this to make send() and recv() block
-
-   if (pfd.revents & POLLOUT) {
-      debug_msg("[riemann] tcp socket success!");
-      return s;
    } else {
-      err_msg("[riemann] tcp socket fail!");
-      close (sockfd);
-      free (s);
-      return NULL;
+      if (pfds[0].revents & POLLOUT) {
+         int error = 0;
+         int len = sizeof(error);
+         if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
+            close(sockfd);
+            free (s);
+            return NULL;
+         }
+         if (error) {
+            close(sockfd);
+            free (s);
+            return NULL;
+         }
+         debug_msg("[riemann] tcp socket success!");
+         return s;
+      } else {
+         err_msg("[riemann] tcp socket fail!");
+         close (sockfd);
+         free (s);
+         return NULL;
+      }
    }
 }
 #endif /* WITH_RIEMANN */
