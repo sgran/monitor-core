@@ -143,22 +143,20 @@ init_riemann_tcp_socket (const char *hostname, uint16_t port)
    struct pollfd pfds[0];
    pfds[0].fd = sockfd;
    pfds[0].events = POLLOUT;
-   rv = poll (pfds, 1, 200);
+   rv = poll (pfds, 1, RIEMANN_POLL_TIMEOUT);
 
    if (rv < 0) {
-      err_msg ("ERROR: poll() error");
       close (sockfd);
       free (s);
       return NULL;
    } else if (rv == 0) {
-      err_msg ("ERROR: timeout");
       close (sockfd);
       free (s);
       return NULL;
    } else {
       if (pfds[0].revents & POLLOUT) {
          int error = 0;
-         int len = sizeof(error);
+         socklen_t len = sizeof(error);
          if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
             close(sockfd);
             free (s);
@@ -636,9 +634,9 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
      riemann_failures++;
      if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
         riemann_circuit_breaker = RIEMANN_CB_OPEN;
-        riemann_reset_timeout = apr_time_now () + RIEMANN_TIMEOUT * APR_USEC_PER_SEC;
+        riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
         err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
-                 riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_TIMEOUT);
+                 riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
      }
      rv = EXIT_FAILURE;
   } else {

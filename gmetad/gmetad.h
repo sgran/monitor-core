@@ -258,6 +258,7 @@ memcached_pool_st* memcached_connection_pool;
 #define RIEMANN_CB_OPEN 1
 #define RIEMANN_CB_HALF_OPEN 2
 
-#define RIEMANN_TIMEOUT 60
+#define RIEMANN_POLL_TIMEOUT 500 /* ms */
+#define RIEMANN_RETRY_TIMEOUT 60 /* seconds */
 #define RIEMANN_MAX_FAILURES 5
 #endif /* WITH_RIEMANN */
