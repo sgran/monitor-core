@@ -43,10 +43,9 @@ circuit_breaker_thread(void *arg)
             riemann_circuit_breaker = RIEMANN_CB_OPEN;
             riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
          } else {
-            riemann_failures = 0;
             riemann_circuit_breaker = RIEMANN_CB_CLOSED;
+            riemann_failures = 0;
          }
-
          pthread_mutex_unlock( &riemann_mutex );
       }
 
