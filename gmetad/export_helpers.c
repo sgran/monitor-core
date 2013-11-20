@@ -504,12 +504,10 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
                       const char *state, unsigned int localtime, const char *tags_str,
                       const char *location, unsigned int ttl)
 {
-  pthread_mutex_lock( &riemann_mutex );
+  int i, rval = EXIT_SUCCESS;
+  char *buffer = NULL;
 
-  int i;
-
-  debug_msg("[riemann] grid=%s, cluster=%s, host=%s, ip=%s, metric=%s, value=%s %s, type=%s, state=%s, "
-            "localtime=%u, tags=%s, location=%s, ttl=%u",
+  debug_msg("[riemann] grid=%s, cluster=%s, host=%s, ip=%s, metric=%s, value=%s %s, type=%s, state=%s, localtime=%u, tags=%s, location=%s, ttl=%u",
             grid, cluster, host, ip, metric, value, units, type, state, localtime, tags_str, location, ttl);
 
   Event evt = EVENT__INIT;
@@ -518,17 +516,17 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
   evt.service = (char *)metric;
 
    if (value) {
-      if (!strcmp(type, "int")) {
-         evt.has_metric_sint64 = 1;
-         evt.metric_sint64 = strtol(value, (char **) NULL , 10 );
-      } else if (!strcmp(type, "float")) {
-         evt.has_metric_d = 1;
-         evt.metric_d = (double) strtod(value, (char**) NULL);
-      } else {
-         evt.state = (char *)value; /* string metrics stored in state */
-      }
+       if (!strcmp(type, "int")) {
+           evt.has_metric_sint64 = 1;
+           evt.metric_sint64 = strtol(value, (char **) NULL , 10 );
+       } else if (!strcmp(type, "float")) {
+           evt.has_metric_d = 1;
+           evt.metric_d = (double) strtod(value, (char**) NULL);
+       } else {
+           evt.state = (char *)value;
+       }
    }
-   evt.description = (char *)units;
+  evt.description = (char *)units;
 
    if (state)
       evt.state = (char *)state;
@@ -537,10 +535,11 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
       evt.time = localtime;
 
   char *tags[64] = { NULL };
-  char *tok = strdup(tags_str);
-  evt.n_tags = tokenize (tok, ",", tags);  /* assume tags are comma-separated */
+  buffer = strdup(tags_str);
+
+  evt.n_tags = tokenize (buffer, ",", tags);  /* assume tags are comma-separated */
   evt.tags = tags;
-  free(tok);
+  free(buffer);
 
   char attr_str[512];
   sprintf(attr_str, "grid=%s,cluster=%s,ip=%s,location=%s%s%s", grid, cluster, ip, location,
@@ -549,22 +548,23 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 
   int n_attrs;
   char *kv[64] = { NULL };
-  tok = strdup(attr_str);
-  n_attrs = tokenize (tok, ",", kv);
-  free(tok);
+  buffer = strdup(attr_str);
+
+  n_attrs = tokenize (buffer, ",", kv);
+  free(buffer);
 
   Attribute **attrs;
   attrs = malloc (sizeof (Attribute *) * n_attrs);
 
   for (i = 0; i < n_attrs; i++) {
 
-     char *pair[1] = { NULL };
-     tokenize (kv[i], "=", pair);
+    char *pair[1] = { NULL };
+    tokenize (kv[i], "=", pair);
 
-     attrs[i] = malloc (sizeof (Attribute));
-     attribute__init (attrs[i]);
-     attrs[i]->key = pair[0];
-     attrs[i]->value = pair[1];
+    attrs[i] = malloc (sizeof (Attribute));
+    attribute__init (attrs[i]);
+    attrs[i]->key = pair[0];
+    attrs[i]->value = pair[1];
   }
   evt.n_attributes = n_attrs;
   evt.attributes = attrs;
@@ -577,38 +577,53 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
   riemann_msg.events = malloc(sizeof (Event) * riemann_msg.n_events);
   riemann_msg.events[0] = &evt;
 
-  debug_msg("[riemann] %zu host=%s, service=%s, state=%s, metric_f=%f, metric_d=%lf, metric_sint64=%" PRId64 ", "
-            "description=%s, ttl=%f, tags(%zu), attributes(%zu)",
-             evt.time, evt.host, evt.service, evt.state, evt.metric_f, evt.metric_d, evt.metric_sint64, evt.description,
-             evt.ttl, evt.n_tags, evt.n_attributes);
+  debug_msg("[riemann] %zu host=%s, service=%s, state=%s, metric_f=%f, metric_d=%lf, metric_sint64=%" PRId64 ", description=%s, ttl=%f, tags(%zu), attributes(%zu)",
+            evt.time, evt.host, evt.service, evt.state, evt.metric_f, evt.metric_d, evt.metric_sint64, evt.description, evt.ttl, evt.n_tags, evt.n_attributes);
 
-  int nbytes = 0;
-  unsigned len = 0;
   if (!strcmp (gmetad_config.riemann_protocol, "udp")) {
-     debug_msg ("[riemann] Sending metric via UDP transport...");
-     len = msg__get_packed_size (&riemann_msg);
-     void *buf = malloc (len);
-     msg__pack (&riemann_msg, buf);
 
-     nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0, (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
-     free (buf);
+  int nbytes;
+  unsigned len;
+  void *buf;
+
+  len = msg__get_packed_size(&riemann_msg);
+  buf = malloc(len);
+  msg__pack(&riemann_msg, buf);
+
+  pthread_mutex_lock( &riemann_mutex );
+  nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
+                         (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
+  pthread_mutex_unlock( &riemann_mutex );
+  free (buf);
+
+  if (nbytes != len)
+  {
+         err_msg("[riemann] ERROR %s sendto(): %s", gmetad_config.riemann_protocol, strerror(errno));
+         rval = EXIT_FAILURE;
+  } else {
+      debug_msg("[riemann] Sent %d serialized bytes", len);
+  }
+
   } else {
      if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
-        debug_msg ("[riemann] Sending metric via TCP transport...");
-        struct
-        {
+
+        int nbytes;
+        unsigned len;
+        struct {
           uint32_t header;
           uint8_t data[0];
         } *buf;
-        len = msg__get_packed_size (&riemann_msg) + sizeof (buf->header);
 
+        len = msg__get_packed_size (&riemann_msg) + sizeof (buf->header);
         buf = malloc (len);
         msg__pack (&riemann_msg, buf->data);
         buf->header = htonl (len - sizeof (buf->header));
 
+        pthread_mutex_lock( &riemann_mutex );
         nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
+        pthread_mutex_unlock( &riemann_mutex );
         free (buf);
- 
+/* 
         Msg *response;
         uint32_t header, len;
         uint8_t *rbuf;
@@ -625,24 +640,18 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            debug_msg ("[riemann] message response ok=%d", response->ok);
            free (rbuf);
         }
-     }
-  }
-
-  int rv = EXIT_SUCCESS;
-  if (nbytes != len) {
-     err_msg("[riemann] ERROR %s send: %s", gmetad_config.riemann_protocol, strerror (errno));
-     riemann_failures++;
-     if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
-        riemann_circuit_breaker = RIEMANN_CB_OPEN;
-        riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
-        err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
+*/
+        if (nbytes != len) {
+           err_msg("[riemann] ERROR %s send(): %s", gmetad_config.riemann_protocol, strerror (errno));
+           riemann_failures++;
+           if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
+              riemann_circuit_breaker = RIEMANN_CB_OPEN;
+              riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
+              err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
                  riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
+           }
+        }
      }
-     rv = EXIT_FAILURE;
-  } else {
-     riemann_failures = 0;
-     debug_msg ("[riemann] Sent %d serialized bytes", len);
-     rv = EXIT_SUCCESS;
   }
 
   for (i = 0; i < evt.n_attributes; i++) {
@@ -657,8 +666,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
   }
   free(riemann_msg.events);
 
-  pthread_mutex_unlock( &riemann_mutex );
-  return rv;
+  return rval;
 }
 #endif /* WITH_RIEMANN */
 
