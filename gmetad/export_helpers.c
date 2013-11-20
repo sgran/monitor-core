@@ -632,6 +632,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         rc = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
         if (rc != sizeof (header)) {
            err_msg ("[riemann] error occurred during response");
+           rval = EXIT_FAILURE;
         } else {
            len = ntohl (header);
            rbuf = malloc (len);
@@ -650,6 +651,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
               err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
                  riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
            }
+           rval = EXIT_FAILURE;
         }
      }
   }
