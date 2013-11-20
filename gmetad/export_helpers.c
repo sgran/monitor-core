@@ -582,27 +582,27 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 
   if (!strcmp (gmetad_config.riemann_protocol, "udp")) {
 
-  int nbytes;
-  unsigned len;
-  void *buf;
+     int nbytes;
+     unsigned len;
+     void *buf;
 
-  len = msg__get_packed_size(&riemann_msg);
-  buf = malloc(len);
-  msg__pack(&riemann_msg, buf);
+     len = msg__get_packed_size(&riemann_msg);
+     buf = malloc(len);
+     msg__pack(&riemann_msg, buf);
 
-  pthread_mutex_lock( &riemann_mutex );
-  nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
-                         (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
-  pthread_mutex_unlock( &riemann_mutex );
-  free (buf);
+     pthread_mutex_lock( &riemann_mutex );
+     nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
+                            (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
+     pthread_mutex_unlock( &riemann_mutex );
+     free (buf);
 
-  if (nbytes != len)
-  {
-         err_msg("[riemann] ERROR %s sendto(): %s", gmetad_config.riemann_protocol, strerror(errno));
-         rval = EXIT_FAILURE;
-  } else {
-      debug_msg("[riemann] Sent %d serialized bytes", len);
-  }
+     if (nbytes != len)
+     {
+        err_msg("[riemann] ERROR %s sendto(): %s", gmetad_config.riemann_protocol, strerror(errno));
+        rval = EXIT_FAILURE;
+     } else {
+        debug_msg("[riemann] Sent %d serialized bytes", len);
+     }
 
   } else {
      if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
@@ -623,7 +623,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
         pthread_mutex_unlock( &riemann_mutex );
         free (buf);
-/* 
+
         Msg *response;
         uint32_t header, len;
         uint8_t *rbuf;
@@ -641,7 +641,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            debug_msg ("[riemann] message response ok=%d", response->ok);
            free (rbuf);
         }
-*/
+
         if (nbytes != len) {
            err_msg("[riemann] ERROR %s send(): %s", gmetad_config.riemann_protocol, strerror (errno));
            riemann_failures++;
@@ -652,6 +652,8 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
                  riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
            }
            rval = EXIT_FAILURE;
+        } else {
+           debug_msg("[riemann] Sent %d serialized bytes", len);
         }
      }
   }
