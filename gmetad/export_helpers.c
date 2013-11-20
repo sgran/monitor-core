@@ -614,14 +614,14 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         } else {
            debug_msg("[riemann] Sent %d serialized bytes", len);
         }
-
+/*
         Msg *response;
         uint32_t header, rlen;
         uint8_t *rbuf;
         ssize_t rc;
 
         rc = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
-        if (rc == 0) {  /* server closed connection */
+        if (rc == 0) {
               err_msg ("[riemann] server closed connection");
               riemann_failures = RIEMANN_MAX_FAILURES + 1;
               rval = EXIT_FAILURE;
@@ -641,7 +641,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            debug_msg ("[riemann] message response ok=%d", response->ok);
            free (rbuf);
         }
-
+*/
         if (riemann_failures > RIEMANN_MAX_FAILURES) {
            riemann_circuit_breaker = RIEMANN_CB_OPEN;
            riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
