@@ -504,6 +504,8 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
                       const char *state, unsigned int localtime, const char *tags_str,
                       const char *location, unsigned int ttl)
 {
+  pthread_mutex_lock( &riemann_mutex );
+
   int i, rval = EXIT_SUCCESS;
   char *buffer = NULL;
 
@@ -590,10 +592,8 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
      buf = malloc(len);
      msg__pack(&riemann_msg, buf);
 
-     pthread_mutex_lock( &riemann_mutex );
      nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
                             (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
-     pthread_mutex_unlock( &riemann_mutex );
      free (buf);
 
      if (nbytes != len)
@@ -619,7 +619,6 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         msg__pack (&riemann_msg, buf->data);
         buf->header = htonl (len - sizeof (buf->header));
 
-        pthread_mutex_lock( &riemann_mutex );
         nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
         free (buf);
 
@@ -640,16 +639,13 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            debug_msg ("[riemann] message response ok=%d", response->ok);
            free (rbuf);
         }
-        pthread_mutex_unlock( &riemann_mutex );
 
         if (nbytes != len) {
            err_msg("[riemann] ERROR %s send(): %s", gmetad_config.riemann_protocol, strerror (errno));
            riemann_failures++;
            if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
-              pthread_mutex_lock( &riemann_mutex );
               riemann_circuit_breaker = RIEMANN_CB_OPEN;
               riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
-              pthread_mutex_unlock( &riemann_mutex );
               err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
                  riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
            }
@@ -671,6 +667,8 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
      free(tags[i]);
   }
   free(riemann_msg.events);
+
+  pthread_mutex_unlock( &riemann_mutex );
 
   return rval;
 }
