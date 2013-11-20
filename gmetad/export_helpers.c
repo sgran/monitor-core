@@ -646,8 +646,10 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            err_msg("[riemann] ERROR %s send(): %s", gmetad_config.riemann_protocol, strerror (errno));
            riemann_failures++;
            if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
+              pthread_mutex_lock( &riemann_mutex );
               riemann_circuit_breaker = RIEMANN_CB_OPEN;
               riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
+              pthread_mutex_unlock( &riemann_mutex );
               err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
                  riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
            }
