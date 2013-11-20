@@ -134,6 +134,24 @@ init_riemann_tcp_socket (const char *hostname, uint16_t port)
   if (riemann_tcp_socket)
       close (riemann_tcp_socket->sockfd);
 
+  struct timeval timeout;
+  timeout.tv_sec = 0;
+  timeout.tv_usec = 500 * 1000; /* 500ms */
+
+  if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+    {
+      close (sockfd);
+      free (s);
+      return NULL;
+    }
+
+  if (setsockopt (sockfd, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+    {
+      close (sockfd);
+      free (s);
+      return NULL;
+    }
+
   rv = connect(sockfd, &s->sa, sizeof(s->sa));
   if (rv != 0)
     {
