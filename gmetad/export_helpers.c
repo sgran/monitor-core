@@ -636,8 +636,20 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         ssize_t rc;
 
         rc = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
-        if (rc != sizeof (header)) {
-           err_msg ("[riemann] error occurred during response");
+        if (rc == 0) {  /* server closed connection */
+              err_msg ("[riemann] server closed connection");
+              riemann_failures = RIEMANN_MAX_FAILURES + 1;
+              rval = EXIT_FAILURE;
+        } else if (rc == -1) {
+           if (errno != EAGAIN) {
+              err_msg ("[riemann] %s", strerror(errno));
+              riemann_failures++;
+              rval = EXIT_FAILURE;
+           } else {
+              err_msg ("[riemann] EAGAIN %s", strerror(errno));
+           }
+        } else if (rc != sizeof (header)) {
+           err_msg ("[riemann] error occurred receiving response");
            riemann_failures++;
            rval = EXIT_FAILURE;
         } else {
