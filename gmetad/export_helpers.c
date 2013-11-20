@@ -621,7 +621,6 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 
         pthread_mutex_lock( &riemann_mutex );
         nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
-        pthread_mutex_unlock( &riemann_mutex );
         free (buf);
 
         Msg *response;
@@ -641,6 +640,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            debug_msg ("[riemann] message response ok=%d", response->ok);
            free (rbuf);
         }
+        pthread_mutex_unlock( &riemann_mutex );
 
         if (nbytes != len) {
            err_msg("[riemann] ERROR %s send(): %s", gmetad_config.riemann_protocol, strerror (errno));
