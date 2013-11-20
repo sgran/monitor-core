@@ -107,75 +107,42 @@ init_riemann_udp_socket (const char *hostname, uint16_t port)
 g_tcp_socket*
 init_riemann_tcp_socket (const char *hostname, uint16_t port)
 {
-   int sockfd;
-   g_tcp_socket* s;
-   struct sockaddr_in *sa_in;
-   struct hostent *hostinfo;
-   int rv;
+  int sockfd;
+  g_tcp_socket* s;
+  struct sockaddr_in *sa_in;
+  struct hostent *hostinfo;
+  int rv;
 
-   sockfd = socket (AF_INET, SOCK_STREAM, 0);
-   if (sockfd < 0)
+  sockfd = socket (AF_INET, SOCK_STREAM, 0);
+  if (sockfd < 0)
       return NULL;
 
-   s = malloc( sizeof( g_tcp_socket ) );
-   memset( s, 0, sizeof( g_tcp_socket ));
-   s->sockfd = sockfd;
-   s->ref_count = 1;
+  s = malloc( sizeof( g_tcp_socket ) );
+  memset( s, 0, sizeof( g_tcp_socket ));
+  s->sockfd = sockfd;
+  s->ref_count = 1;
 
-   /* Set up address and port for connection */
-   sa_in = (struct sockaddr_in*) &s->sa;
-   sa_in->sin_family = AF_INET;
-   sa_in->sin_port = htons (port);
-   hostinfo = gethostbyname (hostname);
-   if (!hostinfo)
+  /* Set up address and port for connection */
+  sa_in = (struct sockaddr_in*) &s->sa;
+  sa_in->sin_family = AF_INET;
+  sa_in->sin_port = htons (port);
+  hostinfo = gethostbyname (hostname);
+  if (!hostinfo)
       err_quit("Unknown host %s", hostname);
-   sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
+  sa_in->sin_addr = *(struct in_addr *) hostinfo->h_addr;
 
-   if (riemann_tcp_socket)
+  if (riemann_tcp_socket)
       close (riemann_tcp_socket->sockfd);
 
-   // set to non-blocking
-   long flags = fcntl (sockfd, F_GETFL, 0);
-   fcntl (sockfd, F_SETFL, flags | O_NONBLOCK);
-
-   connect (sockfd, &s->sa, sizeof(s->sa));
-
-   struct pollfd pfds[0];
-   pfds[0].fd = sockfd;
-   pfds[0].events = POLLOUT;
-   rv = poll (pfds, 1, RIEMANN_POLL_TIMEOUT);
-
-   if (rv < 0) {
+  rv = connect(sockfd, &s->sa, sizeof(s->sa));
+  if (rv != 0)
+    {
       close (sockfd);
       free (s);
       return NULL;
-   } else if (rv == 0) {
-      close (sockfd);
-      free (s);
-      return NULL;
-   } else {
-      if (pfds[0].revents & POLLOUT) {
-         int error = 0;
-         socklen_t len = sizeof(error);
-         if (getsockopt(sockfd, SOL_SOCKET, SO_ERROR, &error, &len) < 0) {
-            close(sockfd);
-            free (s);
-            return NULL;
-         }
-         if (error) {
-            close(sockfd);
-            free (s);
-            return NULL;
-         }
-         debug_msg("[riemann] tcp socket success!");
-         return s;
-      } else {
-         err_msg("[riemann] tcp socket fail!");
-         close (sockfd);
-         free (s);
-         return NULL;
-      }
-   }
+    }
+
+  return s;
 }
 #endif /* WITH_RIEMANN */
 
@@ -641,13 +608,9 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
               riemann_failures = RIEMANN_MAX_FAILURES + 1;
               rval = EXIT_FAILURE;
         } else if (rc == -1) {
-           if (errno != EAGAIN) {
-              err_msg ("[riemann] %s", strerror(errno));
-              riemann_failures++;
-              rval = EXIT_FAILURE;
-           } else {
-              err_msg ("[riemann] EAGAIN %s", strerror(errno));
-           }
+           err_msg ("[riemann] %s", strerror(errno));
+           riemann_failures++;
+           rval = EXIT_FAILURE;
         } else if (rc != sizeof (header)) {
            err_msg ("[riemann] error occurred receiving response");
            riemann_failures++;
