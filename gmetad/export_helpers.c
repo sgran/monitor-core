@@ -625,7 +625,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         free (buf);
 
         Msg *response;
-        uint32_t header, len;
+        uint32_t header, rlen;
         uint8_t *rbuf;
         ssize_t rc;
 
@@ -634,10 +634,10 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            err_msg ("[riemann] error occurred during response");
            rval = EXIT_FAILURE;
         } else {
-           len = ntohl (header);
-           rbuf = malloc (len);
-           recv (riemann_tcp_socket->sockfd, rbuf, len, 0);
-           response = msg__unpack (NULL, len, rbuf);
+           rlen = ntohl (header);
+           rbuf = malloc (rlen);
+           recv (riemann_tcp_socket->sockfd, rbuf, rlen, 0);
+           response = msg__unpack (NULL, rlen, rbuf);
            debug_msg ("[riemann] message response ok=%d", response->ok);
            free (rbuf);
         }
