@@ -622,6 +622,14 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
         free (buf);
 
+        if (nbytes != len) {
+           err_msg("[riemann] ERROR %s send(): %s", gmetad_config.riemann_protocol, strerror (errno));
+           riemann_failures++;
+           rval = EXIT_FAILURE;
+        } else {
+           debug_msg("[riemann] Sent %d serialized bytes", len);
+        }
+
         Msg *response;
         uint32_t header, rlen;
         uint8_t *rbuf;
@@ -630,6 +638,7 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
         rc = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
         if (rc != sizeof (header)) {
            err_msg ("[riemann] error occurred during response");
+           riemann_failures++;
            rval = EXIT_FAILURE;
         } else {
            rlen = ntohl (header);
@@ -640,19 +649,12 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            free (rbuf);
         }
 
-        if (nbytes != len) {
-           err_msg("[riemann] ERROR %s send(): %s", gmetad_config.riemann_protocol, strerror (errno));
-           riemann_failures++;
-           if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
-              riemann_circuit_breaker = RIEMANN_CB_OPEN;
-              riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
-              err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
-                 riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
-           }
-           rval = EXIT_FAILURE;
-        } else {
-           debug_msg("[riemann] Sent %d serialized bytes", len);
-        }
+        if (riemann_failures > RIEMANN_MAX_FAILURES) {
+           riemann_circuit_breaker = RIEMANN_CB_OPEN;
+           riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
+           err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
+              riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
+       }
      }
   }
 
