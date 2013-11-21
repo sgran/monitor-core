@@ -508,7 +508,7 @@ main ( int argc, char *argv[] )
 #endif /* WITH_RIEMANN */
 
     /* Meta data */
-   last_metadata = 0;
+   last_metadata = apr_time_now();
    for(;;)
       {
          /* Do at a random interval, between 
@@ -518,6 +518,7 @@ main ( int argc, char *argv[] )
          /* Make sure the sleep time is at least 1 second */
          if(apr_time_sec(apr_time_now() + sleep_time) < (METADATA_MINIMUM_SLEEP + apr_time_sec(apr_time_now())))
             sleep_time += apr_time_from_sec(METADATA_MINIMUM_SLEEP);
+         debug_msg("[root] sleep time = %" APR_TIME_T_FMT " ms", sleep_time / 1000);
          apr_sleep(sleep_time);
 
          /* Need to be sure root is locked while doing summary */
@@ -538,6 +539,7 @@ main ( int argc, char *argv[] )
          hash_foreach(root.metric_summary, write_root_summary, NULL);
 
          /* Remember our last run */
+         debug_msg("[root] time between runs %" APR_TIME_T_FMT " ms", (apr_time_now() - last_metadata) / 1000 );
          last_metadata = apr_time_now();
       }
 
