@@ -491,6 +491,8 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
 {
   pthread_mutex_lock( &riemann_mutex );
 
+  apr_time_t start = apr_time_now();
+
   int i, rval = EXIT_SUCCESS;
   char *buffer = NULL;
 
@@ -667,6 +669,13 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
      free(tags[i]);
   }
   free(riemann_msg.events);
+
+  apr_time_t diff = start - apr_time_now();
+  if (diff > 500) {
+      err_msg("[riemann] send to riemann took %d ms", diff);
+  } else if (diff > 100) {
+      debug_msg("[riemann] send to riemann took %d ms", diff")
+  }
 
   pthread_mutex_unlock( &riemann_mutex );
 
