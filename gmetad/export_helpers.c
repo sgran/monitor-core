@@ -670,12 +670,15 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
   }
   free(riemann_msg.events);
 
-  apr_time_t diff = start - apr_time_now();
+  apr_time_t diff = apr_time_now() - start;
+  diff = diff / 1000; /* ms */
   if (diff > 500) {
-      err_msg("[riemann] send to riemann took %d ms", diff);
-  } else if (diff > 100) {
-      debug_msg("[riemann] send to riemann took %d ms", diff")
-  }
+      err_msg("[riemann] ERR send to riemann took %" APR_TIME_T_FMT " ms", diff);
+  } else if (diff > 10) {
+      debug_msg("[riemann] WRN send to riemann took %" APR_TIME_T_FMT " ms", diff);
+  } /* else {
+      debug_msg("[riemann] DBG send to riemann took %" APR_TIME_T_FMT " ms", diff);
+  } */
 
   pthread_mutex_unlock( &riemann_mutex );
 
