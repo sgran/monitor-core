@@ -136,7 +136,7 @@ init_riemann_tcp_socket (const char *hostname, uint16_t port)
 
   struct timeval timeout;
   timeout.tv_sec = 0;
-  timeout.tv_usec = 500 * 1000; /* 500ms */
+  timeout.tv_usec = RIEMANN_TCP_TIMEOUT * 1000;
 
   if (setsockopt (sockfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
     {
@@ -640,8 +640,13 @@ send_data_to_riemann (const char *grid, const char *cluster, const char *host, c
            response = msg__unpack (NULL, rlen, rbuf);
            debug_msg ("[riemann] message response ok=%d", response->ok);
            free (rbuf);
-        }
 
+           if (response->ok != 1) {
+              err_msg("[riemann] message response error: %s", response->error);
+              riemann_failures++;
+              rval = EXIT_FAILURE;
+           }
+        }
         if (riemann_failures > RIEMANN_MAX_FAILURES) {
            riemann_circuit_breaker = RIEMANN_CB_OPEN;
            riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
