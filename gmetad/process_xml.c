@@ -19,6 +19,13 @@ extern Source_t root;
 extern gmetad_config_t gmetad_config;
 
 #ifdef WITH_RIEMANN
+#include "riemann.pb-c.h"
+
+// int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
+// apr_time_t riemann_reset_timeout = 0;
+// int riemann_failures = 0;
+
+Event *event;
 Msg *riemann_msg;
 int riemann_num_events;
 #endif /* WITH_RIEMANN */
@@ -540,14 +547,22 @@ startElement_HOST(void *data, const char *el, const char **attr)
       char value[12];
       sprintf(value, "%d", reported);
 
-      int rm_ret = 0;
-      event = send_data_to_riemann (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
+      event = create_riemann_event (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
                                     getfield(host->strings, host->ip), "heartbeat", value, "int",
                                     "seconds", NULL, xmldata->source.localtime, getfield(host->strings, host->tags),
                                     getfield(host->strings, host->location), tmax * 4);
 
-      if (rm_ret)
-         err_msg("[riemann] Could not send heartbeat metric to Riemann");
+      if (event) {
+         if (!strcmp(gmetad_config.riemann_protocol, "udp")) {
+             send_event_to_riemann (event);
+             // riemann_event_free(event); /* FIXME */
+         } else {
+             riemann_num_events++;
+             riemann_msg->events = realloc (riemann_msg->events, sizeof (Event) * riemann_num_events);
+             riemann_msg->n_events = riemann_num_events;
+             riemann_msg->events[riemann_num_events - 1] = event;
+         }
+      }
     }
 #endif /* WITH_RIEMANN */
 
@@ -695,11 +710,11 @@ startElement_METRIC(void *data, const char *el, const char **attr)
             }
             if (event) {
                 if (!strcmp(gmetad_config.riemann_protocol, "udp")) {
-                    send_event_to_riemann_udp(event);
+                    send_event_to_riemann (event);
                     // riemann_event_free(event); /* FIXME */
                 } else {
                     riemann_num_events++;
-                    riemann_msg->events = realloc (sizeof (Event) * riemann_num_events);
+                    riemann_msg->events = realloc (riemann_msg->events, sizeof (Event) * riemann_num_events);
                     riemann_msg->n_events = riemann_num_events;
                     riemann_msg->events[riemann_num_events - 1] = event;
                 }

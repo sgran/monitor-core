@@ -546,7 +546,7 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
   int i;
   for (i = 0; i < n_attrs; i++) {
 
-    char *pair[1] = { NULL };
+    char *pair[2] = { NULL };
     tokenize (kv[i], "=", pair);
 
     attrs[i] = malloc (sizeof (Attribute));
@@ -591,7 +591,7 @@ send_event_to_riemann (Event *event)
    free (buf);
 
    if (nbytes != len) {
-      err_msg (stderr, "[riemann] ERROR UDP sendto(): %s", strerror (errno));
+      err_msg ("[riemann] ERROR UDP sendto(): %s", strerror (errno));
       return EXIT_FAILURE;
    } else {
       riemann_failures = 0;
@@ -603,7 +603,7 @@ send_event_to_riemann (Event *event)
 int
 send_message_to_riemann (Msg *message)
 {
-   int rval = EXIT_SUCCES;
+   int rval = EXIT_SUCCESS;
 
    if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
 
@@ -620,7 +620,7 @@ send_message_to_riemann (Msg *message)
       sbuf->header = htonl (len - sizeof (sbuf->header));
 
       pthread_mutex_lock( &riemann_mutex );
-      nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
+      nbytes = send (riemann_tcp_socket->sockfd, sbuf, len, 0);
       free (sbuf);
 
       if (nbytes != len) {

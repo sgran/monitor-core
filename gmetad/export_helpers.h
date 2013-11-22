@@ -25,14 +25,16 @@ int
 write_data_to_carbon ( const char *source, const char *host, const char *metric, 
                     const char *sum, unsigned int process_time);
 #ifdef WITH_RIEMANN
+#include "riemann.pb-c.h"
+
 g_udp_socket*
 init_riemann_udp_socket (const char *hostname, uint16_t port);
 
 g_tcp_socket*
 init_riemann_tcp_socket (const char *hostname, uint16_t port);
 
-int                                              /* Ganglia   =>  Riemann */
-send_data_to_riemann (const char *grid,          /* grid      =>  grid */
+Event *                                          /* Ganglia   =>  Riemann */
+create_riemann_event (const char *grid,          /* grid      =>  grid */
                       const char *cluster,       /* cluster   =>  cluster */
                       const char *host,          /* host      =>  host */
                       const char *ip,            /* ip        =>  ip */
@@ -46,4 +48,9 @@ send_data_to_riemann (const char *grid,          /* grid      =>  grid */
                       const char *location,      /* location  =>  location */
                       unsigned int ttl           /* tmax      =>  ttl */
                       );
+int
+send_event_to_riemann (Event *event);
+
+int
+send_message_to_riemann (Msg *message);
 #endif /* WITH_RIEMANN */
