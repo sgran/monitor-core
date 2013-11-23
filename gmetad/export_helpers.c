@@ -591,10 +591,9 @@ send_event_to_riemann (Event *event)
    free (buf);
 
    if (nbytes != len) {
-      err_msg ("[riemann] ERROR UDP sendto(): %s", strerror (errno));
+      err_msg ("[riemann] ERROR UDP socket sendto(): %s", strerror (errno));
       return EXIT_FAILURE;
    } else {
-      riemann_failures = 0;
       debug_msg ("[riemann] Sent %d serialized bytes", len);
    }
    return EXIT_SUCCESS;
@@ -624,7 +623,7 @@ send_message_to_riemann (Msg *message)
       free (sbuf);
 
       if (nbytes != len) {
-         err_msg("[riemann] ERROR TCP send(): %s", strerror (errno));
+         err_msg("[riemann] ERROR TCP socket send(): %s", strerror (errno));
          riemann_failures++;
          rval = EXIT_FAILURE;
       } else {
