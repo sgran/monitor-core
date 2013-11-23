@@ -1301,7 +1301,7 @@ endElement_CLUSTER(void *data, const char *el)
 static int
 endElement_HOST(void *data, const char *el)
 {
-   if (!strcmp(!gmetad_config.riemann_protocol, "tcp")) {
+   if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
       /* send events to riemann in one message */
       send_message_to_riemann(riemann_msg);
       free(riemann_msg); // FIXME
