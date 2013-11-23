@@ -21,10 +21,6 @@ extern gmetad_config_t gmetad_config;
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
 
-// int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
-// apr_time_t riemann_reset_timeout = 0;
-// int riemann_failures = 0;
-
 Event *event;
 Msg *riemann_msg;
 int riemann_num_events;
@@ -538,11 +534,11 @@ startElement_HOST(void *data, const char *el, const char **attr)
 
 #ifdef WITH_RIEMANN
 
-   riemann_msg = malloc (sizeof (Msg));
-   msg__init (riemann_msg);
-
    /* Forward heartbeat metric to Riemann */
    if (gmetad_config.riemann_server) {
+
+      riemann_msg = malloc (sizeof (Msg));
+      msg__init (riemann_msg);
 
       char value[12];
       sprintf(value, "%d", reported);
