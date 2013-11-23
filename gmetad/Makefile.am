@@ -30,7 +30,7 @@ endif
 gmetad_LDADD   = $(top_builddir)/lib/libganglia.la -lrrd -lm \
                  $(GLDADD) $(DEPS_LIBS)
 
-gmetad_LDFLAGS = $(GLDFLAGS) -pg
+gmetad_LDFLAGS = $(GLDFLAGS)
 
 EXTRA_DIST = gmetad.aix.init gmetad.conf.in gmetad.init gmetad.init.SuSE \
     type_hash.gperf xml_hash.gperf gmetad-default cmdline.sh gmetad.service.in
