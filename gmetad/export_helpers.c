@@ -575,18 +575,18 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
 int
 send_event_to_riemann (Event *event)
 {
-   int nbytes;
-   unsigned len;
+   size_t len, nbytes;
    void *buf;
 
-   Msg riemann_msg = MSG__INIT;
-   riemann_msg.n_events = 1;
-   riemann_msg.events = malloc(sizeof (Event));
-   riemann_msg.events[0] = event;
+   Msg *riemann_msg = malloc (sizeof (Msg));
+   msg__init (riemann_msg);
+   riemann_msg->events = malloc(sizeof (Event));
+   riemann_msg->n_events = 1;
+   riemann_msg->events[0] = event;
 
-   len = msg__get_packed_size(&riemann_msg);
+   len = msg__get_packed_size(riemann_msg);
    buf = malloc(len);
-   msg__pack(&riemann_msg, buf);
+   msg__pack(riemann_msg, buf);
 
    pthread_mutex_lock( &riemann_mutex );
    nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
@@ -600,7 +600,7 @@ send_event_to_riemann (Event *event)
       err_msg ("[riemann] Error - UDP socket sendto(): %s", strerror (errno));
       return EXIT_FAILURE;
    } else {
-      debug_msg ("[riemann] Sent 1 event in %d serialized bytes", len);
+      debug_msg ("[riemann] Sent 1 event in %lu serialized bytes", (unsigned long)len);
    }
    return EXIT_SUCCESS;
 }
@@ -612,8 +612,7 @@ send_message_to_riemann (Msg *message)
 
    if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
 
-      uint32_t len;
-      ssize_t nbytes;
+      size_t len, nbytes;;
       struct {
          uint32_t header;
          uint8_t data[0];
@@ -636,7 +635,7 @@ send_message_to_riemann (Msg *message)
          riemann_failures++;
          rval = EXIT_FAILURE;
       } else {
-         debug_msg("[riemann] Sent %d events as 1 message in %d serialized bytes", message->n_events, len);
+         debug_msg("[riemann] Sent %lu events as 1 message in %lu serialized bytes", (unsigned long)message->n_events, (unsigned long)len);
       }
 
       Msg *response;
@@ -710,6 +709,7 @@ destroy_riemann_event(Event *event)
    if (event->attributes)
       free(event->attributes);
    free (event);
+   return 0;
 }
 
 int
@@ -722,6 +722,7 @@ destroy_riemann_msg(Msg *message)
    if (message->events)
      free(message->events);
    free(message);
+   return 0;
 }
 #endif /* WITH_RIEMANN */
 

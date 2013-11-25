@@ -53,4 +53,10 @@ send_event_to_riemann (Event *event);
 
 int
 send_message_to_riemann (Msg *message);
+
+int
+destroy_riemann_event(Event *event);
+
+int
+destroy_riemann_msg(Msg *message);
 #endif /* WITH_RIEMANN */
