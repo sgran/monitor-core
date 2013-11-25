@@ -469,17 +469,21 @@ write_data_to_carbon ( const char *source, const char *host, const char *metric,
 int
 tokenize (char *str, char *delim, char **tokens)
 {
+  debug_msg("[token] start");
+
   char *p;
+  char *last;
   int i = 0;
 
-  p = strtok (str, delim);
+  p = strtok_r (str, delim, &last);
   while (p != NULL) {
     tokens[i] = malloc (strlen (p) + 1);
     if (tokens[i])
       strcpy (tokens[i], p);
     i++;
-    p = strtok (NULL, delim);
+    p = strtok_r (NULL, delim, &last);
   }
+  debug_msg("[token] end");
   return i++;
 }
 
@@ -496,8 +500,8 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
   Event *event = malloc (sizeof (Event));
   event__init (event);
 
-  event->host = (char *) host;
-  event->service = (char *) metric;
+  event->host = strdup(host);
+  event->service = strdup(metric);
 
   if (value) {
     if (!strcmp (type, "int")) {
@@ -509,18 +513,18 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
       event->metric_d = (double) strtod (value, (char **) NULL);
     }
     else {
-      event->state = (char *) value;
+      event->state = strdup(value);
     }
   }
 
-  event->description = (char *) units;
+  event->description = strdup(units);
 
   if (state)
-    event->state = (char *) state;
+    event->state = strdup(state);
 
   if (localtime)
     event->time = localtime;
-
+/*
   char *tags[64] = { NULL };
   char *buffer = strdup (tags_str);
 
@@ -556,14 +560,14 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
   }
   event->n_attributes = n_attrs;
   event->attributes = attrs;
-
+*/
   event->has_ttl = 1;
   event->ttl = ttl;
 
   debug_msg("[riemann] %zu host=%s, service=%s, state=%s, metric_f=%f, metric_d=%lf, metric_sint64=%" PRId64
             ", description=%s, ttl=%f, tags(%zu), attributes(%zu)", event->time, event->host, event->service,
             event->state, event->metric_f, event->metric_d, event->metric_sint64, event->description,
-            event->ttl, event->n_tags, event->n_attributes);
+            event->ttl, 0, 0 /*event->n_tags, event->n_attributes */);
 
   return event;
 }
@@ -612,6 +616,9 @@ send_message_to_riemann (Msg *message)
          uint32_t header;
          uint8_t data[0];
       } *sbuf;
+
+      if (!message)
+         return EXIT_FAILURE;
 
       len = msg__get_packed_size (message) + sizeof (sbuf->header);
       sbuf = malloc (len);

@@ -22,7 +22,7 @@ extern gmetad_config_t gmetad_config;
 #include "riemann.pb-c.h"
 
 Event *event;
-Msg *riemann_msg;
+Msg *riemann_msg = NULL;
 int riemann_num_events;
 #endif /* WITH_RIEMANN */
 
@@ -537,8 +537,11 @@ startElement_HOST(void *data, const char *el, const char **attr)
    /* Forward heartbeat metric to Riemann */
    if (gmetad_config.riemann_server) {
 
-      riemann_msg = malloc (sizeof (Msg));
-      msg__init (riemann_msg);
+      if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
+         debug_msg("[riemann] start host -> malloc()");
+         riemann_msg = malloc (sizeof (Msg));
+         msg__init (riemann_msg);
+      }
 
       char value[12];
       sprintf(value, "%d", reported);
@@ -554,7 +557,8 @@ startElement_HOST(void *data, const char *el, const char **attr)
              // riemann_event_free(event); /* FIXME */
          } else {
              riemann_num_events++;
-             riemann_msg->events = realloc (riemann_msg->events, sizeof (Event) * riemann_num_events);
+             debug_msg("[riemann] num events = %d", riemann_num_events);
+             riemann_msg->events = malloc (sizeof (Event) * riemann_num_events);
              riemann_msg->n_events = riemann_num_events;
              riemann_msg->events[riemann_num_events - 1] = event;
          }
@@ -710,6 +714,7 @@ startElement_METRIC(void *data, const char *el, const char **attr)
                     // riemann_event_free(event); /* FIXME */
                 } else {
                     riemann_num_events++;
+                    debug_msg("[riemann] num events = %d (m)", riemann_num_events);
                     riemann_msg->events = realloc (riemann_msg->events, sizeof (Event) * riemann_num_events);
                     riemann_msg->n_events = riemann_num_events;
                     riemann_msg->events[riemann_num_events - 1] = event;
@@ -1303,8 +1308,19 @@ endElement_HOST(void *data, const char *el)
 {
    if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
       /* send events to riemann in one message */
+      debug_msg("[riemann] end host -> send msg");
       send_message_to_riemann(riemann_msg);
-      free(riemann_msg); // FIXME
+
+      debug_msg("[riemann] end host -> free()");
+      int i;
+      for (i = 0; i < riemann_msg->n_events; i++)
+          free(riemann_msg->events[i]);
+      free(riemann_msg->events);
+      free(riemann_msg);
+
+      riemann_msg = NULL;
+      riemann_num_events = 0;
+      debug_msg("[riemann] end host -> freed");
    }
    return 0;
 }
