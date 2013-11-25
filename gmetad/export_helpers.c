@@ -536,24 +536,20 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
      event->tags[j] = strdup (tags[j]);
      debug_msg("[riemann] tag[%d] = %s", j, event->tags[j]);
   }
-/*
+
   char attr_str[512];
   sprintf(attr_str, "grid=%s,cluster=%s,ip=%s,location=%s%s%s", grid, cluster, ip, location,
         gmetad_config.riemann_attributes ? "," : "",
         gmetad_config.riemann_attributes ? gmetad_config.riemann_attributes : "");
 
-  int n_attrs;
   char *kv[64] = { NULL };
-  buffer = strdup (attr_str);
-
-  n_attrs = tokenize (buffer, ",", kv);
-  free (buffer);
+  event->n_attributes = tokenize (attr_str, ",", kv);
 
   Attribute **attrs;
-  attrs = malloc (sizeof (Attribute *) * n_attrs);
+  attrs = malloc (sizeof (Attribute *) * (event->n_attributes + 1));
 
   int i;
-  for (i = 0; i < n_attrs; i++) {
+  for (i = 0; i < event->n_attributes; i++) {
 
     char *pair[2] = { NULL };
     tokenize (kv[i], "=", pair);
@@ -563,16 +559,15 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
     attrs[i]->key = pair[0];
     attrs[i]->value = pair[1];
   }
-  event->n_attributes = n_attrs;
   event->attributes = attrs;
-*/
+
   event->has_ttl = 1;
   event->ttl = ttl;
 
   debug_msg("[riemann] %zu host=%s, service=%s, state=%s, metric_f=%f, metric_d=%lf, metric_sint64=%" PRId64
             ", description=%s, ttl=%f, tags(%zu), attributes(%zu)", event->time, event->host, event->service,
             event->state, event->metric_f, event->metric_d, event->metric_sint64, event->description,
-            event->ttl, event->n_tags, 0 /* event->n_attributes */);
+            event->ttl, event->n_tags, event->n_attributes);
 
   return event;
 }
