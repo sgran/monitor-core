@@ -467,15 +467,16 @@ write_data_to_carbon ( const char *source, const char *host, const char *metric,
 #ifdef WITH_RIEMANN
 
 int
-tokenize (char *str, char *delim, char **tokens)
+tokenize (const char *str, char *delim, char **tokens)
 {
   debug_msg("[token] start");
 
+  char *copy = strdup (str);
   char *p;
   char *last;
   int i = 0;
 
-  p = strtok_r (str, delim, &last);
+  p = strtok_r (copy, delim, &last);
   while (p != NULL) {
     tokens[i] = malloc (strlen (p) + 1);
     if (tokens[i])
@@ -484,6 +485,7 @@ tokenize (char *str, char *delim, char **tokens)
     p = strtok_r (NULL, delim, &last);
   }
   debug_msg("[token] end");
+  free (copy);
   return i++;
 }
 
@@ -500,8 +502,8 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
   Event *event = malloc (sizeof (Event));
   event__init (event);
 
-  event->host = strdup(host);
-  event->service = strdup(metric);
+  event->host = strdup (host);
+  event->service = strdup (metric);
 
   if (value) {
     if (!strcmp (type, "int")) {
@@ -513,25 +515,28 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
       event->metric_d = (double) strtod (value, (char **) NULL);
     }
     else {
-      event->state = strdup(value);
+      event->state = strdup (value);
     }
   }
 
-  event->description = strdup(units);
+  event->description = strdup (units);
 
   if (state)
-    event->state = strdup(state);
+    event->state = strdup (state);
 
   if (localtime)
     event->time = localtime;
-/*
+
   char *tags[64] = { NULL };
-  char *buffer = strdup (tags_str);
 
-  event->n_tags = tokenize (buffer, ",", tags);
-  event->tags = tags;
-  free (buffer);
-
+  event->n_tags = tokenize (tags_str, ",", tags);
+  event->tags = malloc (sizeof (char *) * (event->n_tags + 1));
+  int j;
+  for (j = 0; j< event->n_tags; j++) {
+     event->tags[j] = strdup (tags[j]);
+     debug_msg("[riemann] tag[%d] = %s", j, event->tags[j]);
+  }
+/*
   char attr_str[512];
   sprintf(attr_str, "grid=%s,cluster=%s,ip=%s,location=%s%s%s", grid, cluster, ip, location,
         gmetad_config.riemann_attributes ? "," : "",
@@ -567,7 +572,7 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
   debug_msg("[riemann] %zu host=%s, service=%s, state=%s, metric_f=%f, metric_d=%lf, metric_sint64=%" PRId64
             ", description=%s, ttl=%f, tags(%zu), attributes(%zu)", event->time, event->host, event->service,
             event->state, event->metric_f, event->metric_d, event->metric_sint64, event->description,
-            event->ttl, 0, 0 /*event->n_tags, event->n_attributes */);
+            event->ttl, event->n_tags, 0 /* event->n_attributes */);
 
   return event;
 }

@@ -1308,13 +1308,13 @@ endElement_HOST(void *data, const char *el)
 {
    if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
       /* send events to riemann in one message */
-      debug_msg("[riemann] end host -> send msg");
+      debug_msg("[riemann] Send %d events in 1 message", riemann_num_events);
       send_message_to_riemann(riemann_msg);
 
       debug_msg("[riemann] end host -> free()");
       int i;
       for (i = 0; i < riemann_msg->n_events; i++)
-          free(riemann_msg->events[i]);
+         free(riemann_msg->events[i]);
       free(riemann_msg->events);
       free(riemann_msg);
 
