@@ -190,6 +190,9 @@ typedef struct
       report_start_func report_start;
       report_end_func report_end;
       hash_t *metrics;
+#ifdef WITH_RIEMANN
+      hash_t *riemann_msg;
+#endif /* WITH_RIEMANN */
       struct timeval t0; /* A local timestamp, for TN */
       short int ip;
       uint32_t tn;

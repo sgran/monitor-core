@@ -20,8 +20,7 @@ extern gmetad_config_t gmetad_config;
 
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
-
-Event *event;
+// Event *event;
 Msg *riemann_msg = NULL;
 int riemann_num_events;
 #endif /* WITH_RIEMANN */
@@ -538,6 +537,13 @@ startElement_HOST(void *data, const char *el, const char **attr)
    if (gmetad_config.riemann_server) {
 
       if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
+         host->riemann_msg = hash_create(DEFAULT_METRICSIZE);
+         if (!host->riemann_msg)
+            {
+               err_msg("[riemann] Could not create message hash for host %s", name);
+               return 1;
+            }
+         // not needed ? ...
          debug_msg("[riemann] start host -> malloc()");
          riemann_msg = malloc (sizeof (Msg));
          msg__init (riemann_msg);
@@ -546,7 +552,7 @@ startElement_HOST(void *data, const char *el, const char **attr)
       char value[12];
       sprintf(value, "%d", reported);
 
-      event = create_riemann_event (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
+      Event *event = create_riemann_event (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
                                     getfield(host->strings, host->ip), "heartbeat", value, "int",
                                     "seconds", NULL, xmldata->source.localtime, getfield(host->strings, host->tags),
                                     getfield(host->strings, host->location), tmax * 4);
@@ -561,6 +567,8 @@ startElement_HOST(void *data, const char *el, const char **attr)
              riemann_msg->events = malloc (sizeof (Event) * riemann_num_events);
              riemann_msg->n_events = riemann_num_events;
              riemann_msg->events[riemann_num_events - 1] = event;
+
+             // FIXME - add heartbeat to riemann_msg hash
          }
       }
     }
@@ -691,6 +699,7 @@ startElement_METRIC(void *data, const char *el, const char **attr)
 
             Host_t *host = (Host_t*) host;
             host = &(xmldata->host);
+            Event *event;
 
             if (tt->type == INT || tt->type == UINT) {
                event = create_riemann_event (gmetad_config.gridname, xmldata->sourcename, xmldata->hostname,
