@@ -536,7 +536,6 @@ startElement_HOST(void *data, const char *el, const char **attr)
    if (gmetad_config.riemann_server) {
 
       if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
-         debug_msg("[riemann] start host -> malloc()");
          riemann_msg = malloc (sizeof (Msg));
          msg__init (riemann_msg);
       }
@@ -552,10 +551,8 @@ startElement_HOST(void *data, const char *el, const char **attr)
       if (event) {
          if (!strcmp(gmetad_config.riemann_protocol, "udp")) {
              send_event_to_riemann (event);
-             // riemann_event_free(event); /* FIXME */
          } else {
              riemann_num_events++;
-             debug_msg("[riemann] num events = %d", riemann_num_events);
              riemann_msg->events = malloc (sizeof (Event) * riemann_num_events);
              riemann_msg->n_events = riemann_num_events;
              riemann_msg->events[riemann_num_events - 1] = event;
@@ -710,10 +707,8 @@ startElement_METRIC(void *data, const char *el, const char **attr)
             if (event) {
                 if (!strcmp(gmetad_config.riemann_protocol, "udp")) {
                     send_event_to_riemann (event);
-                    // riemann_event_free(event); /* FIXME */
                 } else {
                     riemann_num_events++;
-                    debug_msg("[riemann] num events = %d (m)", riemann_num_events);
                     riemann_msg->events = realloc (riemann_msg->events, sizeof (Event) * riemann_num_events);
                     riemann_msg->n_events = riemann_num_events;
                     riemann_msg->events[riemann_num_events - 1] = event;
@@ -1306,20 +1301,8 @@ static int
 endElement_HOST(void *data, const char *el)
 {
    if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
-      /* send events to riemann in one message */
-      debug_msg("[riemann] Send %d events in 1 message", riemann_num_events);
       send_message_to_riemann(riemann_msg);
-
-      debug_msg("[riemann] end host -> free()");
-      int i;
-      for (i = 0; i < riemann_msg->n_events; i++)
-         free(riemann_msg->events[i]);
-      free(riemann_msg->events);
-      free(riemann_msg);
-
-      riemann_msg = NULL;
-      riemann_num_events = 0;
-      debug_msg("[riemann] end host -> freed");
+      destroy_riemann_msg(riemann_msg);
    }
    return 0;
 }

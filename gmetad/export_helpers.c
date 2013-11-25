@@ -469,8 +469,6 @@ write_data_to_carbon ( const char *source, const char *host, const char *metric,
 int
 tokenize (const char *str, char *delim, char **tokens)
 {
-  debug_msg("[token] start");
-
   char *copy = strdup (str);
   char *p;
   char *last;
@@ -484,7 +482,6 @@ tokenize (const char *str, char *delim, char **tokens)
     i++;
     p = strtok_r (NULL, delim, &last);
   }
-  debug_msg("[token] end");
   free (copy);
   return i++;
 }
@@ -530,11 +527,11 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
   char *tags[64] = { NULL };
 
   event->n_tags = tokenize (tags_str, ",", tags);
-  event->tags = malloc (sizeof (char *) * (event->n_tags + 1));
+  event->tags = malloc (sizeof (char *) * (event->n_tags));
   int j;
   for (j = 0; j< event->n_tags; j++) {
      event->tags[j] = strdup (tags[j]);
-     debug_msg("[riemann] tag[%d] = %s", j, event->tags[j]);
+     free(tags[j]);
   }
 
   char attr_str[512];
@@ -546,18 +543,21 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
   event->n_attributes = tokenize (attr_str, ",", kv);
 
   Attribute **attrs;
-  attrs = malloc (sizeof (Attribute *) * (event->n_attributes + 1));
+  attrs = malloc (sizeof (Attribute *) * (event->n_attributes));
 
   int i;
   for (i = 0; i < event->n_attributes; i++) {
 
     char *pair[2] = { NULL };
     tokenize (kv[i], "=", pair);
+    free(kv[i]);
 
     attrs[i] = malloc (sizeof (Attribute));
     attribute__init (attrs[i]);
-    attrs[i]->key = pair[0];
-    attrs[i]->value = pair[1];
+    attrs[i]->key = strdup(pair[0]);
+    attrs[i]->value = strdup(pair[1]);
+    free(pair[0]);
+    free(pair[1]);
   }
   event->attributes = attrs;
 
@@ -594,11 +594,13 @@ send_event_to_riemann (Event *event)
    pthread_mutex_unlock( &riemann_mutex );
    free (buf);
 
+   destroy_riemann_msg(riemann_msg);
+
    if (nbytes != len) {
-      err_msg ("[riemann] ERROR UDP socket sendto(): %s", strerror (errno));
+      err_msg ("[riemann] Error - UDP socket sendto(): %s", strerror (errno));
       return EXIT_FAILURE;
    } else {
-      debug_msg ("[riemann] Sent %d serialized bytes", len);
+      debug_msg ("[riemann] Sent 1 event in %d serialized bytes", len);
    }
    return EXIT_SUCCESS;
 }
@@ -630,11 +632,11 @@ send_message_to_riemann (Msg *message)
       free (sbuf);
 
       if (nbytes != len) {
-         err_msg("[riemann] ERROR TCP socket send(): %s", strerror (errno));
+         err_msg("[riemann] Error - TCP socket send(): %s", strerror (errno));
          riemann_failures++;
          rval = EXIT_FAILURE;
       } else {
-         debug_msg("[riemann] Sent %d serialized bytes", len);
+         debug_msg("[riemann] Sent %d events as 1 message in %d serialized bytes", message->n_events, len);
       }
 
       Msg *response;
@@ -670,6 +672,8 @@ send_message_to_riemann (Msg *message)
             err_msg("[riemann] message response error: %s", response->error);
             riemann_failures++;
             rval = EXIT_FAILURE;
+         } else {
+            debug_msg("[riemann] Received OK");
          }
       }
       if (riemann_failures > RIEMANN_MAX_FAILURES) {
@@ -680,6 +684,44 @@ send_message_to_riemann (Msg *message)
       }
    }
   return rval;
+}
+
+int
+destroy_riemann_event(Event *event)
+{
+   int i;
+   if (event->host)
+      free(event->host);
+   if (event->service)
+      free(event->service);
+   if (event->state)
+      free(event->state);
+   if (event->description)
+      free(event->description);
+   for (i = 0; i < event->n_tags; i++)
+      free(event->tags[i]);
+   if (event->tags)
+      free(event->tags);
+   for (i = 0; i < event->n_attributes; i++) {
+      free(event->attributes[i]->key);
+      free(event->attributes[i]->value);
+      free(event->attributes[i]);
+   }
+   if (event->attributes)
+      free(event->attributes);
+   free (event);
+}
+
+int
+destroy_riemann_msg(Msg *message)
+{
+   int i;
+   for (i = 0; i < message->n_events; i++) {
+     destroy_riemann_event(message->events[i]);
+   }
+   if (message->events)
+     free(message->events);
+   free(message);
 }
 #endif /* WITH_RIEMANN */
 
