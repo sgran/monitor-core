@@ -58,19 +58,23 @@ circuit_breaker_thread(void *arg)
          nbytes = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
          pthread_mutex_unlock( &riemann_mutex );
 
-         if (nbytes == 0) {  /* server closed connection */
+         debug_msg("[riemann] Received message header...");
+         if (nbytes == 0) {
             err_msg ("[riemann] server closed connection");
             pthread_mutex_lock( &riemann_mutex );
             riemann_circuit_breaker = RIEMANN_CB_OPEN;
             pthread_mutex_unlock( &riemann_mutex );
          } else if (nbytes == -1) {
-            err_msg ("[riemann] %s", strerror(errno));
-            pthread_mutex_lock( &riemann_mutex );
-            debug_msg("[riemann] recv() timeout ??");
-            // riemann_failures++;
-            pthread_mutex_unlock( &riemann_mutex );
+            if (errno == EAGAIN) {
+               debug_msg("[riemann] recv(): timeout");
+            } else {
+               err_msg ("[riemann] recv(): %s", strerror(errno));
+               pthread_mutex_lock( &riemann_mutex );
+               riemann_failures++;
+               pthread_mutex_unlock( &riemann_mutex );
+            }
          } else if (nbytes != sizeof (header)) {
-            err_msg ("[riemann] error occurred receiving response");
+            err_msg ("[riemann] response header length mismatch");
             pthread_mutex_lock( &riemann_mutex );
             riemann_failures++;
             pthread_mutex_unlock( &riemann_mutex );
@@ -81,28 +85,37 @@ circuit_breaker_thread(void *arg)
             nbytes = recv (riemann_tcp_socket->sockfd, rbuf, len, 0);
             pthread_mutex_unlock( &riemann_mutex );
 
+            debug_msg("[riemann] Received message payload...");
             if (nbytes == 0) {
-               debug_msg("[riemann] response failed - server closed connection");
-               /* server closed connection */
+               err_msg ("[riemann] server closed connection");
+               pthread_mutex_lock( &riemann_mutex );
+               riemann_circuit_breaker = RIEMANN_CB_OPEN;
+               pthread_mutex_unlock( &riemann_mutex );
             } else if (nbytes == -1) {
-               debug_msg("[riemann] response failed - general error");
-               /* error */
+               err_msg ("[riemann] recv(): %s", strerror(errno));
+               pthread_mutex_lock( &riemann_mutex );
+               riemann_circuit_breaker = RIEMANN_CB_OPEN;
+               pthread_mutex_unlock( &riemann_mutex );
+            } else if (nbytes != len) {
+               err_msg ("[riemann] response payload length mismatch");
+               pthread_mutex_lock( &riemann_mutex );
+               riemann_circuit_breaker = RIEMANN_CB_OPEN;
+               pthread_mutex_unlock( &riemann_mutex );
             } else {
                response = msg__unpack (NULL, len, rbuf);
                debug_msg ("[riemann] message response ok=%d", response->ok);
-               free (rbuf);
-
                if (response->ok != 1) {
-                  debug_msg("[riemann] NOT OK");
+                  debug_msg("[riemann] server applying backpressure");
                   if (response->error)
-                     err_msg("[riemann] Reponse error: %s", response->error);
+                     err_msg ("[riemann] reponse error: %s", response->error);
                   pthread_mutex_lock( &riemann_mutex );
-                  riemann_failures++;
+                  riemann_failures++; /* FIXME - or OPEN? */
                   pthread_mutex_unlock( &riemann_mutex );
                } else {
-                  debug_msg("[riemann] Received OK");
+                  debug_msg ("[riemann] Message received OK");
                }
             }
+            free (rbuf);
          }
       }
       if (riemann_failures > RIEMANN_MAX_FAILURES) {
