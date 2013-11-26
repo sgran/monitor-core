@@ -492,10 +492,11 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
                       const char *state, unsigned int localtime, const char *tags_str,
                       const char *location, unsigned int ttl)
 {
+/*
   debug_msg("[riemann] grid=%s, cluster=%s, host=%s, ip=%s, metric=%s, value=%s %s, type=%s, state=%s, "
             "localtime=%u, tags=%s, location=%s, ttl=%u\n", grid, cluster, host, ip, metric, value,
             units, type, state, localtime, tags_str, location, ttl);
-
+*/
   Event *event = malloc (sizeof (Event));
   event__init (event);
 
@@ -563,12 +564,12 @@ create_riemann_event (const char *grid, const char *cluster, const char *host, c
 
   event->has_ttl = 1;
   event->ttl = ttl;
-
+/*
   debug_msg("[riemann] %zu host=%s, service=%s, state=%s, metric_f=%f, metric_d=%lf, metric_sint64=%" PRId64
             ", description=%s, ttl=%f, tags(%zu), attributes(%zu)", event->time, event->host, event->service,
             event->state, event->metric_f, event->metric_d, event->metric_sint64, event->description,
             event->ttl, event->n_tags, event->n_attributes);
-
+*/
   return event;
 }
 
@@ -608,11 +609,13 @@ send_event_to_riemann (Event *event)
 int
 send_message_to_riemann (Msg *message)
 {
+   debug_msg("[riemann] send_message_to_riemann()");
    int rval = EXIT_SUCCESS;
 
    if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
 
-      size_t len, nbytes;;
+      uint32_t len;
+      ssize_t nbytes;
       struct {
          uint32_t header;
          uint8_t data[0];
@@ -621,18 +624,26 @@ send_message_to_riemann (Msg *message)
       if (!message)
          return EXIT_FAILURE;
 
+      debug_msg("[riemann] sizeof(header) %d", sizeof (sbuf->header));
+      debug_msg("[riemann] get pack size");
       len = msg__get_packed_size (message) + sizeof (sbuf->header);
+      debug_msg("[riemann] malloc() send buffer");
       sbuf = malloc (len);
+      debug_msg("[riemann] pack message into buffer");
       msg__pack (message, sbuf->data);
+      debug_msg("[riemann] insert header");
       sbuf->header = htonl (len - sizeof (sbuf->header));
 
+      debug_msg("[riemann] lock mutex");
       pthread_mutex_lock( &riemann_mutex );
       nbytes = send (riemann_tcp_socket->sockfd, sbuf, len, 0);
       free (sbuf);
 
       if (nbytes != len) {
          err_msg("[riemann] Error - TCP socket send(): %s", strerror (errno));
+         pthread_mutex_lock( &riemann_mutex );
          riemann_failures++;
+         pthread_mutex_unlock( &riemann_mutex );
          rval = EXIT_FAILURE;
       } else {
          debug_msg("[riemann] Sent %lu events as 1 message in %lu serialized bytes", (unsigned long)message->n_events, (unsigned long)len);
@@ -642,22 +653,29 @@ send_message_to_riemann (Msg *message)
       uint32_t header;
       uint8_t *rbuf;
 
+      debug_msg("[riemann] waiting for response...");
       nbytes = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
       pthread_mutex_unlock( &riemann_mutex );
 
       if (nbytes == 0) {  /* server closed connection */
          err_msg ("[riemann] server closed connection");
+         pthread_mutex_lock( &riemann_mutex );
          riemann_failures = RIEMANN_MAX_FAILURES + 1;
+         pthread_mutex_unlock( &riemann_mutex );
          rval = EXIT_FAILURE;
       } else if (nbytes == -1) {
          err_msg ("[riemann] %s", strerror(errno));
+         pthread_mutex_lock( &riemann_mutex );
          riemann_failures++;
+         pthread_mutex_unlock( &riemann_mutex );
          rval = EXIT_FAILURE;
       } else if (nbytes != sizeof (header)) {
          err_msg ("[riemann] error occurred receiving response");
+         pthread_mutex_lock( &riemann_mutex );
          riemann_failures++;
+         pthread_mutex_unlock( &riemann_mutex );
          rval = EXIT_FAILURE;
-      } else {
+      } else { /*
          len = ntohl (header);
          rbuf = malloc (len);
          pthread_mutex_lock( &riemann_mutex );
@@ -668,17 +686,24 @@ send_message_to_riemann (Msg *message)
          free (rbuf);
 
          if (response->ok != 1) {
-            err_msg("[riemann] message response error: %s", response->error);
+            debug_msg("[riemann] NOT OK");
+            if (response->error)
+               err_msg("[riemann] Reponse error: %s", response->error);
+            pthread_mutex_lock( &riemann_mutex );
             riemann_failures++;
+            pthread_mutex_unlock( &riemann_mutex );
             rval = EXIT_FAILURE;
          } else {
             debug_msg("[riemann] Received OK");
-         }
+         } */
       }
       if (riemann_failures > RIEMANN_MAX_FAILURES) {
-       riemann_circuit_breaker = RIEMANN_CB_OPEN;
-       riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
-       err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
+        err_msg("[riemann] failures exec max");
+        pthread_mutex_lock( &riemann_mutex );
+        riemann_circuit_breaker = RIEMANN_CB_OPEN;
+        riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
+        pthread_mutex_unlock( &riemann_mutex );
+        err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
           riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
       }
    }
@@ -688,6 +713,7 @@ send_message_to_riemann (Msg *message)
 int
 destroy_riemann_event(Event *event)
 {
+   debug_msg("[riemann] destroy event");
    int i;
    if (event->host)
       free(event->host);
@@ -709,12 +735,14 @@ destroy_riemann_event(Event *event)
    if (event->attributes)
       free(event->attributes);
    free (event);
+   debug_msg("[riemann] destroy event end");
    return 0;
 }
 
 int
 destroy_riemann_msg(Msg *message)
 {
+   debug_msg("[riemann] destroy message");
    int i;
    for (i = 0; i < message->n_events; i++) {
      destroy_riemann_event(message->events[i]);
@@ -722,6 +750,7 @@ destroy_riemann_msg(Msg *message)
    if (message->events)
      free(message->events);
    free(message);
+   debug_msg("[riemann] destroy message end");
    return 0;
 }
 #endif /* WITH_RIEMANN */
