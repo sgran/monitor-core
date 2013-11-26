@@ -610,7 +610,6 @@ int
 send_message_to_riemann (Msg *message)
 {
    debug_msg("[riemann] send_message_to_riemann()");
-   int rval = EXIT_SUCCESS;
 
    if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
 
@@ -624,19 +623,14 @@ send_message_to_riemann (Msg *message)
       if (!message)
          return EXIT_FAILURE;
 
-      debug_msg("[riemann] sizeof(header) %d", sizeof (sbuf->header));
-      debug_msg("[riemann] get pack size");
       len = msg__get_packed_size (message) + sizeof (sbuf->header);
-      debug_msg("[riemann] malloc() send buffer");
       sbuf = malloc (len);
-      debug_msg("[riemann] pack message into buffer");
       msg__pack (message, sbuf->data);
-      debug_msg("[riemann] insert header");
       sbuf->header = htonl (len - sizeof (sbuf->header));
 
-      debug_msg("[riemann] lock mutex");
       pthread_mutex_lock( &riemann_mutex );
       nbytes = send (riemann_tcp_socket->sockfd, sbuf, len, 0);
+      pthread_mutex_unlock( &riemann_mutex );
       free (sbuf);
 
       if (nbytes != len) {
@@ -644,70 +638,12 @@ send_message_to_riemann (Msg *message)
          pthread_mutex_lock( &riemann_mutex );
          riemann_failures++;
          pthread_mutex_unlock( &riemann_mutex );
-         rval = EXIT_FAILURE;
+         return EXIT_FAILURE;
       } else {
          debug_msg("[riemann] Sent %lu events as 1 message in %lu serialized bytes", (unsigned long)message->n_events, (unsigned long)len);
       }
-
-      Msg *response;
-      uint32_t header;
-      uint8_t *rbuf;
-
-      debug_msg("[riemann] waiting for response...");
-      nbytes = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
-      pthread_mutex_unlock( &riemann_mutex );
-
-      if (nbytes == 0) {  /* server closed connection */
-         err_msg ("[riemann] server closed connection");
-         pthread_mutex_lock( &riemann_mutex );
-         riemann_failures = RIEMANN_MAX_FAILURES + 1;
-         pthread_mutex_unlock( &riemann_mutex );
-         rval = EXIT_FAILURE;
-      } else if (nbytes == -1) {
-         err_msg ("[riemann] %s", strerror(errno));
-         pthread_mutex_lock( &riemann_mutex );
-         riemann_failures++;
-         pthread_mutex_unlock( &riemann_mutex );
-         rval = EXIT_FAILURE;
-      } else if (nbytes != sizeof (header)) {
-         err_msg ("[riemann] error occurred receiving response");
-         pthread_mutex_lock( &riemann_mutex );
-         riemann_failures++;
-         pthread_mutex_unlock( &riemann_mutex );
-         rval = EXIT_FAILURE;
-      } else { /*
-         len = ntohl (header);
-         rbuf = malloc (len);
-         pthread_mutex_lock( &riemann_mutex );
-         recv (riemann_tcp_socket->sockfd, rbuf, len, 0);
-         pthread_mutex_unlock( &riemann_mutex );
-         response = msg__unpack (NULL, len, rbuf);
-         debug_msg ("[riemann] message response ok=%d", response->ok);
-         free (rbuf);
-
-         if (response->ok != 1) {
-            debug_msg("[riemann] NOT OK");
-            if (response->error)
-               err_msg("[riemann] Reponse error: %s", response->error);
-            pthread_mutex_lock( &riemann_mutex );
-            riemann_failures++;
-            pthread_mutex_unlock( &riemann_mutex );
-            rval = EXIT_FAILURE;
-         } else {
-            debug_msg("[riemann] Received OK");
-         } */
-      }
-      if (riemann_failures > RIEMANN_MAX_FAILURES) {
-        err_msg("[riemann] failures exec max");
-        pthread_mutex_lock( &riemann_mutex );
-        riemann_circuit_breaker = RIEMANN_CB_OPEN;
-        riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
-        pthread_mutex_unlock( &riemann_mutex );
-        err_msg("[riemann] %d send failures exceeds maximum of %d - circuit breaker is OPEN for %d seconds",
-          riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
-      }
    }
-  return rval;
+  return EXIT_SUCCESS;
 }
 
 int
