@@ -61,9 +61,7 @@ circuit_breaker_thread(void *arg)
          uint32_t header;
          uint8_t *rbuf;
 
-         pthread_mutex_lock( &riemann_cb_mutex );
          nbytes = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
-         pthread_mutex_unlock( &riemann_cb_mutex );
 
          if (nbytes == 0) {
             err_msg ("[riemann] server closed connection");
@@ -87,9 +85,7 @@ circuit_breaker_thread(void *arg)
          } else {
             len = ntohl (header);
             rbuf = malloc (len);
-            pthread_mutex_lock( &riemann_cb_mutex );
             nbytes = recv (riemann_tcp_socket->sockfd, rbuf, len, 0);
-            pthread_mutex_unlock( &riemann_cb_mutex );
 
             if (nbytes == 0) {
                err_msg ("[riemann] server closed connection");
