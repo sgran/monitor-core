@@ -26,7 +26,7 @@
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
 
-extern pthread_mutex_t  riemann_mutex;
+extern pthread_mutex_t  riemann_cb_mutex;
 
 int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
 apr_time_t riemann_reset_timeout = 0;
@@ -74,6 +74,8 @@ init_carbon_udp_socket (const char *hostname, uint16_t port)
 #ifdef WITH_RIEMANN
 g_udp_socket *riemann_udp_socket;
 g_tcp_socket *riemann_tcp_socket;
+
+pthread_mutex_t  riemann_socket_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 g_udp_socket*
 init_riemann_udp_socket (const char *hostname, uint16_t port)
@@ -589,10 +591,10 @@ send_event_to_riemann (Event *event)
    buf = malloc(len);
    msg__pack(riemann_msg, buf);
 
-   pthread_mutex_lock( &riemann_mutex );
+   pthread_mutex_lock( &riemann_socket_mutex );
    nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
                       (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
-   pthread_mutex_unlock( &riemann_mutex );
+   pthread_mutex_unlock( &riemann_socket_mutex );
    free (buf);
 
    destroy_riemann_msg(riemann_msg);
@@ -628,16 +630,16 @@ send_message_to_riemann (Msg *message)
       msg__pack (message, sbuf->data);
       sbuf->header = htonl (len - sizeof (sbuf->header));
 
-      pthread_mutex_lock( &riemann_mutex );
+      pthread_mutex_lock( &riemann_socket_mutex );
       nbytes = send (riemann_tcp_socket->sockfd, sbuf, len, 0);
-      pthread_mutex_unlock( &riemann_mutex );
+      pthread_mutex_unlock( &riemann_socket_mutex );
       free (sbuf);
 
       if (nbytes != len) {
          err_msg("[riemann] Error - TCP socket send(): %s", strerror (errno));
-         pthread_mutex_lock( &riemann_mutex );
+         pthread_mutex_lock( &riemann_cb_mutex );
          riemann_failures++;
-         pthread_mutex_unlock( &riemann_mutex );
+         pthread_mutex_unlock( &riemann_cb_mutex );
          return EXIT_FAILURE;
       } else {
          debug_msg("[riemann] Sent %lu events as 1 message in %lu serialized bytes", (unsigned long)message->n_events, (unsigned long)len);
