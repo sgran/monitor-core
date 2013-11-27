@@ -26,7 +26,7 @@
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
 
-pthread_mutex_t  riemann_mutex = PTHREAD_MUTEX_INITIALIZER;
+extern pthread_mutex_t  riemann_mutex;
 
 int riemann_circuit_breaker = RIEMANN_CB_CLOSED;
 apr_time_t riemann_reset_timeout = 0;

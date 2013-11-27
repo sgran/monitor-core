@@ -6,6 +6,7 @@
 #include "config.h"
 #endif
 
+#include <pthread.h>
 #include <apr_time.h>
 
 #include "gmetad.h"
@@ -21,7 +22,7 @@ extern int riemann_failures;
 
 extern g_tcp_socket* init_riemann_tcp_socket (const char *hostname, uint16_t port);
 
-extern pthread_mutex_t  riemann_mutex;
+thread_mutex_t  riemann_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void *
 circuit_breaker_thread(void *arg)
