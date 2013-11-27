@@ -44,6 +44,13 @@ circuit_breaker_thread(void *arg)
             riemann_failures = 0;
          }
          pthread_mutex_unlock( &riemann_mutex );
+
+         debug_msg("[riemann] circuit breaker is %s (%d)",
+            riemann_circuit_breaker == RIEMANN_CB_CLOSED ? "CLOSED" :
+            riemann_circuit_breaker == RIEMANN_CB_OPEN ?   "OPEN"
+                              /* RIEMANN_CB_HALF_OPEN */ : "HALF_OPEN",
+            riemann_circuit_breaker);
+         }
       }
 
       if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
@@ -54,12 +61,10 @@ circuit_breaker_thread(void *arg)
          uint32_t header;
          uint8_t *rbuf;
 
-         debug_msg("[riemann] Waiting for a response...");
          pthread_mutex_lock( &riemann_mutex );
          nbytes = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
          pthread_mutex_unlock( &riemann_mutex );
 
-         debug_msg("[riemann] Received message header...");
          if (nbytes == 0) {
             err_msg ("[riemann] server closed connection");
             pthread_mutex_lock( &riemann_mutex );
@@ -67,7 +72,7 @@ circuit_breaker_thread(void *arg)
             pthread_mutex_unlock( &riemann_mutex );
          } else if (nbytes == -1) {
             if (errno == EAGAIN) {
-               debug_msg("[riemann] recv(): timeout");
+               /* timeout */
             } else {
                err_msg ("[riemann] recv(): %s", strerror(errno));
                pthread_mutex_lock( &riemann_mutex );
@@ -86,7 +91,6 @@ circuit_breaker_thread(void *arg)
             nbytes = recv (riemann_tcp_socket->sockfd, rbuf, len, 0);
             pthread_mutex_unlock( &riemann_mutex );
 
-            debug_msg("[riemann] Received message payload...");
             if (nbytes == 0) {
                err_msg ("[riemann] server closed connection");
                pthread_mutex_lock( &riemann_mutex );
@@ -120,19 +124,12 @@ circuit_breaker_thread(void *arg)
          }
       }
       if (riemann_failures > RIEMANN_MAX_FAILURES) {
-         err_msg("[riemann] %d send/recv failures (> %d max.) - OPEN circuit breaker for %d seconds...",
+         err_msg("[riemann] excessive failures (%d > %d max.) OPEN for %d seconds...",
                riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
          pthread_mutex_lock( &riemann_mutex );
          riemann_circuit_breaker = RIEMANN_CB_OPEN;
          riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
          pthread_mutex_unlock( &riemann_mutex );
       }
-
-      debug_msg("[riemann] circuit breaker is %s (%d)",
-            riemann_circuit_breaker == RIEMANN_CB_CLOSED ? "CLOSED" :
-            riemann_circuit_breaker == RIEMANN_CB_OPEN ?   "OPEN"
-                              /* RIEMANN_CB_HALF_OPEN */ : "HALF_OPEN",
-            riemann_circuit_breaker);
-   }
 }
 

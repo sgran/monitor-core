@@ -533,7 +533,6 @@ startElement_HOST(void *data, const char *el, const char **attr)
    if (gmetad_config.riemann_server) {
 
       if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
-         debug_msg("[riemann] malloc() riemann_msg");
          riemann_msg = malloc (sizeof (Msg));
          msg__init (riemann_msg);
       }
@@ -551,7 +550,6 @@ startElement_HOST(void *data, const char *el, const char **attr)
              send_event_to_riemann (event);
          } else {
              riemann_num_events++;
-             debug_msg("[riemann] num events = %d", riemann_num_events);
              riemann_msg->events = malloc (sizeof (Event) * riemann_num_events);
              riemann_msg->n_events = riemann_num_events;
              riemann_msg->events[riemann_num_events - 1] = event;

@@ -649,7 +649,6 @@ send_message_to_riemann (Msg *message)
 int
 destroy_riemann_event(Event *event)
 {
-   debug_msg("[riemann] destroy event");
    int i;
    if (event->host)
       free(event->host);
@@ -671,14 +670,12 @@ destroy_riemann_event(Event *event)
    if (event->attributes)
       free(event->attributes);
    free (event);
-   debug_msg("[riemann] destroy event end");
    return 0;
 }
 
 int
 destroy_riemann_msg(Msg *message)
 {
-   debug_msg("[riemann] destroy message");
    int i;
    for (i = 0; i < message->n_events; i++) {
      destroy_riemann_event(message->events[i]);
@@ -686,7 +683,6 @@ destroy_riemann_msg(Msg *message)
    if (message->events)
      free(message->events);
    free(message);
-   debug_msg("[riemann] destroy message end");
    return 0;
 }
 #endif /* WITH_RIEMANN */
