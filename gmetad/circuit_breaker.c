@@ -59,7 +59,7 @@ circuit_breaker_thread(void *arg)
          uint32_t len;
          ssize_t nbytes;
          uint32_t header;
-         uint8_t *rbuf;
+         uint8_t *buf;
 
          nbytes = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
 
@@ -84,8 +84,8 @@ circuit_breaker_thread(void *arg)
             pthread_mutex_unlock( &riemann_cb_mutex );
          } else {
             len = ntohl (header);
-            rbuf = malloc (len);
-            nbytes = recv (riemann_tcp_socket->sockfd, rbuf, len, 0);
+            buf = malloc (len);
+            nbytes = recv (riemann_tcp_socket->sockfd, buf, len, 0);
 
             if (nbytes == 0) {
                err_msg ("[riemann] server closed connection");
@@ -103,7 +103,7 @@ circuit_breaker_thread(void *arg)
                riemann_circuit_breaker = RIEMANN_CB_OPEN;
                pthread_mutex_unlock( &riemann_cb_mutex );
             } else {
-               response = msg__unpack (NULL, len, rbuf);
+               response = msg__unpack (NULL, len, buf);
                debug_msg ("[riemann] message response ok=%d", response->ok);
                if (response->ok != 1) {
                   debug_msg("[riemann] server applying backpressure");
@@ -116,7 +116,7 @@ circuit_breaker_thread(void *arg)
                   debug_msg ("[riemann] Message received OK");
                }
             }
-            free (rbuf);
+            free (buf);
          }
       }
       if (riemann_failures > RIEMANN_MAX_FAILURES) {

@@ -620,20 +620,20 @@ send_message_to_riemann (Msg *message)
       struct {
          uint32_t header;
          uint8_t data[0];
-      } *sbuf;
+      } *buf;
 
       if (!message)
          return EXIT_FAILURE;
 
-      len = msg__get_packed_size (message) + sizeof (sbuf->header);
-      sbuf = malloc (len);
-      msg__pack (message, sbuf->data);
-      sbuf->header = htonl (len - sizeof (sbuf->header));
+      len = msg__get_packed_size (message) + sizeof (buf->header);
+      buf = malloc (len);
+      msg__pack (message, buf->data);
+      buf->header = htonl (len - sizeof (buf->header));
 
       pthread_mutex_lock( &riemann_socket_mutex );
-      nbytes = send (riemann_tcp_socket->sockfd, sbuf, len, 0);
+      nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
       pthread_mutex_unlock( &riemann_socket_mutex );
-      free (sbuf);
+      free (buf);
 
       if (nbytes != len) {
          err_msg("[riemann] Error - TCP socket send(): %s", strerror (errno));
