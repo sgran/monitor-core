@@ -602,10 +602,10 @@ send_event_to_riemann (Event *event)
    destroy_riemann_msg(riemann_msg);
 
    if (nbytes == -1) {
-      err_msg ("[riemann] Error - UDP socket sendto(): %s", strerror (errsv));
+      err_msg ("[riemann] UDP connection error: %s", strerror (errsv));
       return EXIT_FAILURE;
    } else if (nbytes != len) {
-      err_msg ("[riemann] Error - UDP socket sendto(): failed to send all bytes");
+      err_msg ("[riemann] UDP connection error: failed to send all bytes");
       return EXIT_FAILURE;
    } else {
       debug_msg ("[riemann] Sent 1 event in %lu serialized bytes", (unsigned long)len);
@@ -643,13 +643,13 @@ send_message_to_riemann (Msg *message)
       free (buf);
 
       if (nbytes == -1) {
-         err_msg("[riemann] Error - TCP socket send(): %s", strerror (errsv));
+         err_msg("[riemann] TCP connection error: %s", strerror (errsv));
          pthread_mutex_lock( &riemann_cb_mutex );
          riemann_failures++;
          pthread_mutex_unlock( &riemann_cb_mutex );
          return EXIT_FAILURE;
       } else if (nbytes != len) {
-         err_msg("[riemann] Error - TCP socket send(): failed to send all bytes");
+         err_msg("[riemann] TCP connection error: failed to send all bytes");
          pthread_mutex_lock( &riemann_cb_mutex );
          riemann_failures++;
          pthread_mutex_unlock( &riemann_cb_mutex );
