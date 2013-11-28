@@ -580,6 +580,7 @@ send_event_to_riemann (Event *event)
 {
    size_t len, nbytes;
    void *buf;
+   int errsv;
 
    Msg *riemann_msg = malloc (sizeof (Msg));
    msg__init (riemann_msg);
@@ -592,15 +593,19 @@ send_event_to_riemann (Event *event)
    msg__pack(riemann_msg, buf);
 
    pthread_mutex_lock( &riemann_socket_mutex );
-   nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
-                      (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in));
+   if ((nbytes = sendto (riemann_udp_socket->sockfd, buf, len, 0,
+                      (struct sockaddr_in*)&riemann_udp_socket->sa, sizeof (struct sockaddr_in))) == -1)
+      errsv = errno;
    pthread_mutex_unlock( &riemann_socket_mutex );
    free (buf);
 
    destroy_riemann_msg(riemann_msg);
 
-   if (nbytes != len) {
-      err_msg ("[riemann] Error - UDP socket sendto(): %s", strerror (errno));
+   if (nbytes == -1) {
+      err_msg ("[riemann] Error - UDP socket sendto(): %s", strerror (errsv));
+      return EXIT_FAILURE;
+   } else if (nbytes != len) {
+      err_msg ("[riemann] Error - UDP socket sendto(): failed to send all bytes");
       return EXIT_FAILURE;
    } else {
       debug_msg ("[riemann] Sent 1 event in %lu serialized bytes", (unsigned long)len);
@@ -621,6 +626,7 @@ send_message_to_riemann (Msg *message)
          uint32_t header;
          uint8_t data[0];
       } *buf;
+      int errsv;
 
       if (!message)
          return EXIT_FAILURE;
@@ -631,12 +637,19 @@ send_message_to_riemann (Msg *message)
       buf->header = htonl (len - sizeof (buf->header));
 
       pthread_mutex_lock( &riemann_socket_mutex );
-      nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0);
+      if ((nbytes = send (riemann_tcp_socket->sockfd, buf, len, 0)) == -1)
+         errsv = errno;
       pthread_mutex_unlock( &riemann_socket_mutex );
       free (buf);
 
-      if (nbytes != len) {
-         err_msg("[riemann] Error - TCP socket send(): %s", strerror (errno));
+      if (nbytes == -1) {
+         err_msg("[riemann] Error - TCP socket send(): %s", strerror (errsv));
+         pthread_mutex_lock( &riemann_cb_mutex );
+         riemann_failures++;
+         pthread_mutex_unlock( &riemann_cb_mutex );
+         return EXIT_FAILURE;
+      } else if (nbytes != len) {
+         err_msg("[riemann] Error - TCP socket send(): failed to send all bytes");
          pthread_mutex_lock( &riemann_cb_mutex );
          riemann_failures++;
          pthread_mutex_unlock( &riemann_cb_mutex );

@@ -63,12 +63,7 @@ circuit_breaker_thread(void *arg)
 
          nbytes = recv (riemann_tcp_socket->sockfd, &header, sizeof (header), 0);
 
-         if (nbytes == 0) {
-            err_msg ("[riemann] server closed connection");
-            pthread_mutex_lock( &riemann_cb_mutex );
-            riemann_circuit_breaker = RIEMANN_CB_OPEN;
-            pthread_mutex_unlock( &riemann_cb_mutex );
-         } else if (nbytes == -1) {
+         if (nbytes == -1) {
             if (errno == EAGAIN) {
                /* timeout */
             } else {
@@ -77,6 +72,11 @@ circuit_breaker_thread(void *arg)
                riemann_failures++;
                pthread_mutex_unlock( &riemann_cb_mutex );
             }
+         } else if (nbytes == 0) {
+            err_msg ("[riemann] server closed connection");
+            pthread_mutex_lock( &riemann_cb_mutex );
+            riemann_circuit_breaker = RIEMANN_CB_OPEN;
+            pthread_mutex_unlock( &riemann_cb_mutex );
          } else if (nbytes != sizeof (header)) {
             err_msg ("[riemann] response header length mismatch");
             pthread_mutex_lock( &riemann_cb_mutex );
@@ -87,13 +87,13 @@ circuit_breaker_thread(void *arg)
             buf = malloc (len);
             nbytes = recv (riemann_tcp_socket->sockfd, buf, len, 0);
 
-            if (nbytes == 0) {
-               err_msg ("[riemann] server closed connection");
+            if (nbytes == -1) {
+               err_msg ("[riemann] recv(): %s", strerror(errno));
                pthread_mutex_lock( &riemann_cb_mutex );
                riemann_circuit_breaker = RIEMANN_CB_OPEN;
                pthread_mutex_unlock( &riemann_cb_mutex );
-            } else if (nbytes == -1) {
-               err_msg ("[riemann] recv(): %s", strerror(errno));
+            } else if (nbytes == 0) {
+               err_msg ("[riemann] server closed connection");
                pthread_mutex_lock( &riemann_cb_mutex );
                riemann_circuit_breaker = RIEMANN_CB_OPEN;
                pthread_mutex_unlock( &riemann_cb_mutex );
