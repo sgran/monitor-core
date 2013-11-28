@@ -511,8 +511,6 @@ main ( int argc, char *argv[] )
    last_metadata = apr_time_now();
    for(;;)
       {
-         apr_interval_time_t now = apr_time_now();
-
          /* Do at a random interval, between 
                  (shortest_step/2) +/- METADATA_SLEEP_RANDOMIZE percent */
          random_sleep_factor = (1 + (METADATA_SLEEP_RANDOMIZE / 50.0) * ((rand_r(&rand_seed) - RAND_MAX/2)/(float)RAND_MAX));
@@ -520,37 +518,26 @@ main ( int argc, char *argv[] )
          /* Make sure the sleep time is at least 1 second */
          if(apr_time_sec(apr_time_now() + sleep_time) < (METADATA_MINIMUM_SLEEP + apr_time_sec(apr_time_now())))
             sleep_time += apr_time_from_sec(METADATA_MINIMUM_SLEEP);
-         now = apr_time_now();
          apr_sleep(sleep_time);
-         debug_msg("[root] slept for = %" APR_TIME_T_FMT " ms", (apr_time_now() - now) / 1000);
 
          /* Need to be sure root is locked while doing summary */
-         now = apr_time_now();
          pthread_mutex_lock(root.sum_finished);
-         debug_msg("[root] waited for mutex = %" APR_TIME_T_FMT " ms", (apr_time_now() - now) / 1000);
 
          /* Flush the old values */
-         now = apr_time_now();
          hash_foreach(root.metric_summary, zero_out_summary, NULL);
          root.hosts_up = 0;
          root.hosts_down = 0;
-         debug_msg("[root] flush old values = %" APR_TIME_T_FMT " ms", (apr_time_now() - now) / 1000);
 
          /* Sum the new values */
-         now = apr_time_now();
          hash_foreach(root.authority, do_root_summary, NULL );
-         debug_msg("[root] sum new values = %" APR_TIME_T_FMT " ms", (apr_time_now() - now) / 1000);
 
          /* summary completed */
          pthread_mutex_unlock(root.sum_finished);
 
          /* Save them to RRD */
-         now = apr_time_now();
          hash_foreach(root.metric_summary, write_root_summary, NULL);
-         debug_msg("[root] save to rrd = %" APR_TIME_T_FMT " ms", (apr_time_now() - now) / 1000);
 
          /* Remember our last run */
-         debug_msg("[root] time between runs %" APR_TIME_T_FMT " ms", (apr_time_now() - last_metadata) / 1000 );
          last_metadata = apr_time_now();
       }
 
