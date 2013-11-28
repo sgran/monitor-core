@@ -20,7 +20,8 @@ extern gmetad_config_t gmetad_config;
 
 #ifdef WITH_RIEMANN
 #include "riemann.pb-c.h"
-__thread Msg *riemann_msg = NULL;
+__thread Msg *riemann_grid_msg = NULL;
+__thread Msg *riemann_host_msg = NULL;
 __thread int riemann_num_events;
 #endif /* WITH_RIEMANN */
 
@@ -266,6 +267,34 @@ startElement_GRID(void *data, const char *el, const char **attr)
    /* Must happen after all processing of this tag. */
    xmldata->grid_depth++;
    debug_msg("Found a <GRID>, depth is now %d", xmldata->grid_depth);
+
+#ifdef WITH_RIEMANN
+   if (gmetad_config.riemann_server) {
+
+      if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
+         riemann_grid_msg = malloc (sizeof (Msg));
+         msg__init (riemann_grid_msg);
+      }
+
+      char value[12];
+      sprintf(value, "%d", reported);
+
+      Event *event = create_riemann_event (gmetad_config.gridname, NULL, NULL,
+                                    NULL, "heartbeat", value, "int",
+                                    "seconds", NULL, source->localtime, NULL,
+                                    NULL, 60);
+
+      if (event) {
+         if (!strcmp(gmetad_config.riemann_protocol, "udp")) {
+             send_event_to_riemann (event);
+         } else {
+             riemann_grid_msg->events = malloc (sizeof (Event));
+             riemann_grid_msg->n_events = 1;
+             riemann_grid_msg->events[0] = event;
+         }
+      }
+    }
+#endif /* WITH_RIEMANN */
 
    return 0;
 }
@@ -533,8 +562,8 @@ startElement_HOST(void *data, const char *el, const char **attr)
    if (gmetad_config.riemann_server) {
 
       if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
-         riemann_msg = malloc (sizeof (Msg));
-         msg__init (riemann_msg);
+         riemann_host_msg = malloc (sizeof (Msg));
+         msg__init (riemann_host_msg);
       }
 
       char value[12];
@@ -550,9 +579,9 @@ startElement_HOST(void *data, const char *el, const char **attr)
              send_event_to_riemann (event);
          } else {
              riemann_num_events++;
-             riemann_msg->events = malloc (sizeof (Event) * riemann_num_events);
-             riemann_msg->n_events = riemann_num_events;
-             riemann_msg->events[riemann_num_events - 1] = event;
+             riemann_host_msg->events = malloc (sizeof (Event) * riemann_num_events);
+             riemann_host_msg->n_events = riemann_num_events;
+             riemann_host_msg->events[riemann_num_events - 1] = event;
          }
       }
     }
@@ -706,9 +735,9 @@ startElement_METRIC(void *data, const char *el, const char **attr)
                     send_event_to_riemann (event);
                 } else {
                     riemann_num_events++;
-                    riemann_msg->events = realloc (riemann_msg->events, sizeof (Event) * riemann_num_events);
-                    riemann_msg->n_events = riemann_num_events;
-                    riemann_msg->events[riemann_num_events - 1] = event;
+                    riemann_host_msg->events = realloc (riemann_host_msg->events, sizeof (Event) * riemann_num_events);
+                    riemann_host_msg->n_events = riemann_num_events;
+                    riemann_host_msg->events[riemann_num_events - 1] = event;
                 }
             }
         }
@@ -1242,6 +1271,14 @@ endElement_GRID(void *data, const char *el)
          /* Write the metric summaries to the RRD. */
          hash_foreach(summary, finish_processing_source, data);
       }
+
+#ifdef WITH_RIEMANN
+   if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
+      send_message_to_riemann(riemann_grid_msg);
+      destroy_riemann_msg(riemann_grid_msg);
+   }
+#endif /* WITH_RIEMANN */
+
    return 0;
 }
 
@@ -1288,8 +1325,8 @@ static int
 endElement_HOST(void *data, const char *el)
 {
    if (!strcmp(gmetad_config.riemann_protocol, "tcp")) {
-      send_message_to_riemann(riemann_msg);
-      destroy_riemann_msg(riemann_msg);
+      send_message_to_riemann(riemann_host_msg);
+      destroy_riemann_msg(riemann_host_msg);
       riemann_num_events = 0;
    }
    return 0;
