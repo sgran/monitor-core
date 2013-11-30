@@ -503,7 +503,7 @@ main ( int argc, char *argv[] )
    if (!strcmp(c->riemann_protocol, "tcp")) {
       /* A thread to re-poll riemann TCP port if circuit breaker tripped */
       pthread_create(&pid, &attr, circuit_breaker_thread, (void *) NULL);
-      debug_msg("[riemann] circuit breaker thread has been started");
+      debug_msg ("[riemann] circuit breaker thread has been started");
    }
 #endif /* WITH_RIEMANN */
 

@@ -31,26 +31,27 @@ circuit_breaker_thread(void *arg)
 
       if (riemann_circuit_breaker == RIEMANN_CB_OPEN && riemann_reset_timeout < apr_time_now ()) {
 
-         debug_msg ("[riemann] Reset period expired, retry connection...");
+         err_msg ("[riemann] Timeout period expired, retry TCP connection...");
          pthread_mutex_lock( &riemann_cb_mutex );
          riemann_circuit_breaker = RIEMANN_CB_HALF_OPEN;
 
          riemann_tcp_socket = init_riemann_tcp_socket (gmetad_config.riemann_server, gmetad_config.riemann_port);
          if (riemann_tcp_socket == NULL) {
+            err_msg("[riemann] Failed to reconect to riemann server. Retry again in %d seconds.", RIEMANN_RETRY_TIMEOUT);
             riemann_circuit_breaker = RIEMANN_CB_OPEN;
             riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
          } else {
+            err_msg("[riemann] Successful reconnection to riemann server. Reset failure count to zero.");
             riemann_circuit_breaker = RIEMANN_CB_CLOSED;
             riemann_failures = 0;
          }
          pthread_mutex_unlock( &riemann_cb_mutex );
 
-         debug_msg("[riemann] circuit breaker is %s (%d)",
+         err_msg("[riemann] circuit breaker is now %s (%d)",
             riemann_circuit_breaker == RIEMANN_CB_CLOSED ? "CLOSED" :
             riemann_circuit_breaker == RIEMANN_CB_OPEN ?   "OPEN"
                               /* RIEMANN_CB_HALF_OPEN */ : "HALF_OPEN",
             riemann_circuit_breaker);
-         }
       }
 
       if (riemann_circuit_breaker == RIEMANN_CB_CLOSED) {
@@ -119,13 +120,15 @@ circuit_breaker_thread(void *arg)
             free (buf);
          }
       }
-      if (riemann_failures > RIEMANN_MAX_FAILURES) {
-         err_msg("[riemann] excessive failures (%d > %d max.) OPEN for %d seconds...",
+
+      if (riemann_circuit_breaker == RIEMANN_CB_CLOSED && riemann_failures > RIEMANN_MAX_FAILURES) {
+         err_msg("[riemann] failure count of %d exceeds maximum of %d. OPEN circuit breaker for %d seconds!",
                riemann_failures, RIEMANN_MAX_FAILURES, RIEMANN_RETRY_TIMEOUT);
          pthread_mutex_lock( &riemann_cb_mutex );
          riemann_circuit_breaker = RIEMANN_CB_OPEN;
          riemann_reset_timeout = apr_time_now () + RIEMANN_RETRY_TIMEOUT * APR_USEC_PER_SEC;
          pthread_mutex_unlock( &riemann_cb_mutex );
       }
+   }
 }
 
