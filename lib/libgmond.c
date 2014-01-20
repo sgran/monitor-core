@@ -11,6 +11,9 @@
 #include "ganglia_priv.h"
 #include "ganglia.h"
 #include "default_conf.h"
+#ifdef CLOUD
+#include "cloud.h"
+#endif
 
 #include <confuse.h>
 #include <apr_pools.h>
@@ -25,6 +28,11 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <fnmatch.h>
+#include <curl/curl.h>
+
+#ifdef CLOUD
+#define GMOND_CLOUD_CONF "/var/lib/ganglia/gmond-cloud.conf"
+#endif
 
 static char myhost[APRMAXHOSTLEN+1];
 
@@ -71,6 +79,26 @@ static cfg_opt_t globals_opts[] = {
   CFG_STR("tags", NULL, CFGF_NONE),
   CFG_END()
 };
+
+#ifdef CLOUD
+static cfg_opt_t cloud_opts[] = {
+  CFG_STR("access_key", NULL, CFGF_NONE),
+  CFG_STR("secret_key", NULL, CFGF_NONE),
+  CFG_END()
+};
+
+static cfg_opt_t discovery_opts[] = {
+  CFG_STR("type", NULL, CFGF_NONE),
+  CFG_STR("endpoint", "https://ec2.amazonaws.com", CFGF_NONE),
+  CFG_STR_LIST("tags", NULL, CFGF_NONE),
+  CFG_STR_LIST("groups", NULL, CFGF_NONE),
+  CFG_STR_LIST("availability_zones", NULL, CFGF_NONE),
+  CFG_STR("host_type", "private_ip", CFGF_NONE),
+  CFG_INT("port", -1, CFGF_NONE ),
+  CFG_INT("discover_every", 90, CFGF_NONE),
+  CFG_END()
+};
+#endif
 
 static cfg_opt_t access_opts[] = {
   CFG_STR("action", NULL, CFGF_NONE),
@@ -182,6 +210,10 @@ static cfg_opt_t gmond_opts[] = {
   CFG_SEC("cluster",   cluster_opts, CFGF_NONE),
   CFG_SEC("host",      host_opts, CFGF_NONE),
   CFG_SEC("globals",     globals_opts, CFGF_NONE), 
+#ifdef CLOUD
+  CFG_SEC("cloud",     cloud_opts, CFGF_NONE),
+  CFG_SEC("discovery", discovery_opts, CFGF_NONE),
+#endif
   CFG_SEC("udp_send_channel", udp_send_channel_opts, CFGF_MULTI),
   CFG_SEC("udp_recv_channel", udp_recv_channel_opts, CFGF_MULTI),
   CFG_SEC("tcp_accept_channel", tcp_accept_channel_opts, CFGF_MULTI),
@@ -206,6 +238,9 @@ build_default_gmond_configuration(Ganglia_pool p)
   apr_pool_t *context=(apr_pool_t*)p;
 
   default_gmond_configuration = apr_pstrdup(context, BASE_GMOND_CONFIGURATION);
+#ifdef CLOUD
+  default_gmond_configuration = apr_pstrcat(context, default_gmond_configuration, CLOUD_CONFIGURATION, NULL);
+#endif
 #ifdef SFLOW
   default_gmond_configuration = apr_pstrcat(context, default_gmond_configuration, SFLOW_CONFIGURATION, NULL);
 #endif

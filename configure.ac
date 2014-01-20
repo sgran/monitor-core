@@ -268,6 +268,11 @@ AC_ARG_ENABLE( sflow,
 [ if test x"$enableval" != xyes; then enable_sflow="no"; fi ], [ enable_sflow="yes" ] )
 AM_CONDITIONAL(BUILD_SFLOW, test x"$enable_sflow" = xyes)
 
+AC_ARG_ENABLE( cloud,
+[  --enable-cloud         compile and install cloud-enabled gmond support],
+[ enable_cloud="yes" ], [ enable_cloud="no" ] )
+AM_CONDITIONAL(BUILD_CLOUD, test x"$enable_cloud" = xyes)
+
 dnl ##################################################################
 dnl Checks for libraries.
 dnl The order of these tests is the *reverse* order of the libraries in
@@ -619,6 +624,7 @@ fi
 AM_CONDITIONAL(HAVE_SYSTEMD, [test -n "$with_systemdsystemunitdir" -a "x$with_systemdsystemunitdir" != xno ])
 
 echo
+
 echo Checking for zlib
 AC_ARG_WITH([zlib],
   AS_HELP_STRING([--with-zlib=DIR], [Specify location for zlib]),
@@ -638,7 +644,6 @@ fi
 echo "Found a suitable zlib"
 
 echo
-
 
 AC_CHECK_LIB(rpc, xdr_string)
 AC_CHECK_LIB(socket, socket)

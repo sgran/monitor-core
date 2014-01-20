@@ -36,6 +36,7 @@
 #include <apr_tables.h>
 #include <apr_dso.h>
 #include <apr_version.h>
+#include <curl/curl.h>
 
 #ifdef HAVE_LIBPCRE
 #if defined (HAVE_PCRE_PCRE_H)
@@ -60,6 +61,13 @@
 /* If a bind fails, and retry_bind is true, this is the interval to sleep
    before retry.  Specified in seconds */
 #define RETRY_BIND_DELAY 60
+
+#ifdef CLOUD
+#include "cloud.h"
+
+/* Don't trigger a cloud discovery until the gmond has been up for a while */
+#define REDISCOVER_DELAY 15
+#endif
 
 /* The key in the apr_socket_t struct where our gzipped data is stored */
 #define GZIP_KEY "gzip"
@@ -110,6 +118,17 @@ int cleanup_threshold = 300;
 int send_metadata_interval = 0;
 /* The directory where DSO modules are located */
 char *module_dir = NULL;
+
+#ifdef CLOUD
+/* Discovery type ie. 'ec2' = use AWS EC2 API */
+char *discovery_type = NULL;
+/* The number of seconds between cloud re-discovery */
+int discover_every = 90;
+/* last time we ran a discovery */
+apr_time_t last_discovery;
+/* Boolean. Trigger a re-discovery of cluster peers */
+int force_discovery = 0;
+#endif
 
 /* The array for outgoing UDP message channels */
 Ganglia_udp_send_channels udp_send_channels = NULL;
@@ -434,6 +453,28 @@ process_deaf_mute_mode( void )
       exit(1);
     }
 }
+
+#ifdef CLOUD
+static void
+process_discovery_mode( void )
+{
+  cfg_t *tmp = cfg_getsec( config_file, "discovery");
+  discovery_type = cfg_getstr( tmp, "type");
+
+  if (!discovery_type)
+    return;
+
+  if(apr_strnatcmp(discovery_type, "ec2") != 0)
+    {
+      err_msg("Unknown cloud discovery type '%s'. Exiting.\n", discovery_type);
+      exit(1);
+    }
+  debug_msg("[discovery.%s] Using dynamic discovery to build list of nodes", discovery_type);
+
+  discover_every = cfg_getint( tmp, "discover_every");
+  debug_msg("[discovery.%s] List of nodes will be refreshed every %d seconds", discovery_type, discover_every);
+}
+#endif
 
 static void
 process_allow_extra_data_mode( void )
@@ -1110,6 +1151,15 @@ Ganglia_host_get( char *remIP, apr_sockaddr_t *sa, Ganglia_metric_id *metric_id)
       apr_thread_mutex_lock(hosts_mutex);
       apr_hash_set( hosts, hostdata->ip, APR_HASH_KEY_STRING, hostdata); 
       apr_thread_mutex_unlock(hosts_mutex);
+
+#ifdef CLOUD
+      /* Trigger a re-discovery if necessary */
+      if (discovery_type)
+        {
+          debug_msg("[discovery.%s] Metrics received from new host '%s' will trigger a dynamic re-discovery", discovery_type, hostname);
+          force_discovery = 1;
+        }
+#endif
     }
   else
     {
@@ -1478,6 +1528,8 @@ process_udp_recv_channel(const apr_pollfd_t *desc, apr_time_t now)
    * APR counterpart is apr_sockaddr_ip_get() but we don't 
    * want to malloc memory evertime we call this */
   apr_sockaddr_ip_buffer_get(remoteip, 256, remotesa);
+
+  debug_msg("Received %" APR_SIZE_T_FMT " bytes from %s:%d", len, remoteip, remotesa->port);
 
   /* Check the ACL */
   if(Ganglia_acl_action( channel->acl, remotesa) != GANGLIA_ACCESS_ALLOW)
@@ -3347,7 +3399,14 @@ main ( int argc, char *argv[] )
   setuid_if_necessary(); 
 
   process_deaf_mute_mode();
+#ifdef CLOUD
+  process_discovery_mode();
+#endif
   process_allow_extra_data_mode();
+
+#ifdef CLOUD
+  curl_global_init (CURL_GLOBAL_DEFAULT);
+#endif
 
   if(!deaf)
     {
@@ -3355,8 +3414,21 @@ main ( int argc, char *argv[] )
     }
 
   /* even if mute, a send channel may be needed to send a request for metadata */
-  udp_send_channels = Ganglia_udp_send_channels_create((Ganglia_pool)global_context, 
-                                                       (Ganglia_gmond_config)config_file);
+#ifdef CLOUD
+  if(discovery_type)
+    {
+      udp_send_channels = Ganglia_udp_send_channels_discover((Ganglia_pool)global_context,
+                                                           (Ganglia_gmond_config)config_file);
+      last_discovery = apr_time_now();
+
+    } else {
+#endif
+      udp_send_channels = Ganglia_udp_send_channels_create((Ganglia_pool)global_context,
+                                                           (Ganglia_gmond_config)config_file);
+#ifdef CLOUD
+    }
+#endif
+
   if(!udp_send_channels)
     {
       /* if there are no send channels defined, we are equivalent to mute */
@@ -3407,8 +3479,26 @@ main ( int argc, char *argv[] )
           apr_sleep( wait );
         }
 
-      /* only continue if it's time to process our collection groups */
       now = apr_time_now();
+
+#ifdef CLOUD
+      /* Re-run node discovery if new host detected or time for refresh */
+      if(discovery_type)
+        {
+          if((force_discovery && ((now - started) > REDISCOVER_DELAY * APR_USEC_PER_SEC))
+             || ((now - last_discovery) > discover_every * APR_USEC_PER_SEC))
+            {
+              /* Rediscover list of cluster peers */
+              debug_msg("[discovery.%s] Refreshing node list...", discovery_type);
+              udp_send_channels = Ganglia_udp_send_channels_discover((Ganglia_pool)global_context,
+                                                         (Ganglia_gmond_config)config_file);
+              last_discovery = now;
+              force_discovery = 0;
+            }
+        }
+#endif
+
+      /* only continue if it's time to process our collection groups */
       if(now < next_collection)
           continue;
 
@@ -3447,5 +3537,8 @@ main ( int argc, char *argv[] )
   if(reload_required == 1)
     reload_ganglia_configuration();
 
+#ifdef CLOUD
+  curl_global_cleanup ();
+#endif
   return 0;
 }
