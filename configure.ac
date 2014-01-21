@@ -197,6 +197,11 @@ AC_ARG_WITH( libpcre,
 [if test x"$withval" != xno; then libpcre="yes"; libpcrepath="$withval"; fi],
 [libpcre=yes; libpcrepath=yes ])
 
+AC_ARG_WITH( libcurl,
+[  --with-libcurl=DIR      Specify location for libcurl],
+[if test x"$withval" != xno; then libcurl="yes"; libcurlpath="$withval"; fi],
+[libcurl=yes; libcurlpath=yes ])
+
 AC_ARG_WITH( moduledir,
 [  --with-moduledir=DIR    Base directory for dynamically loadable modules],
   moduledir="$withval",
@@ -480,7 +485,7 @@ esac
 PKG_PROG_PKG_CONFIG
 
 echo
-echo Checking for apr
+echo Checking for apr and apr-util
 if test x"$libaprpath" != x && test x"$libaprpath" != xyes; then
   if test -f "$libaprpath" ; then
     APR_INCLUDES=`$libaprpath --includes`
@@ -488,15 +493,17 @@ if test x"$libaprpath" != x && test x"$libaprpath" != xyes; then
     APR_LIBPATH=`$libaprpath --link-ld`
     LDFLAGS="$LDFLAGS -L`expr "x$APR_LIBPATH" : '.*-L\(.*\) '`"
     AC_CHECK_LIB(apr-1, apr_socket_send,,,[`$libaprpath --libs`])
+    AC_CHECK_LIB(aprutil-1, apr_base64_encode,,,[`$libaprpath --libs`])
   else
     CFLAGS="$CFLAGS -I$libaprpath/include"
     LDFLAGS="$LDFLAGS -L$libaprpath/${LIB_SUFFIX}"
     echo "Added -I$libaprpath/include to CFLAGS"
     echo "Added -L$libaprpath/${LIB_SUFFIX} to LDFLAGS"
     AC_CHECK_LIB(apr-1, apr_socket_send)
+    AC_CHECK_LIB(aprutil-1, apr_base64_encode)
   fi
 
-  if test x"$ac_cv_lib_apr_1_apr_socket_send" = xyes; then
+  if test x"$ac_cv_lib_apr_1_apr_socket_send" = xyes && test x"$ac_cv_lib_aprutil_1_apr_base64_encode" = xyes; then
     echo "The ganglia utilities use the Apache Portable Runtime functions (http://www.apache.org/)"
     echo "Found a suitable libapr1 library"
   else
@@ -504,7 +511,7 @@ if test x"$libaprpath" != x && test x"$libaprpath" != xyes; then
     exit 1;
   fi
 else
-  PKG_CHECK_MODULES([APR],[apr-1])
+  PKG_CHECK_MODULES([APR],[apr-1 apr-util-1])
   LDFLAGS="$LIBS $APR_LIBS"
   APR_INCLUDES="$APR_CFLAGS"
 fi
@@ -609,7 +616,26 @@ if test x"$libpcre" == xyes ; then
 else
   echo "building without PCRE support"
 fi
+
 echo
+echo Checking for cURL
+if test x"$libcurlpath" != x && test x"$libcurlpath" != xyes; then
+  CFLAGS="$CFLAGS -I$libcurlpath/include"
+  LDFLAGS="$LDFLAGS -L$libcurlpath/${LIB_SUFFIX}"
+  echo "Added -I$libcurlpath/include to CFLAGS"
+  echo "Added -L$libcurlpath/${LIB_SUFFIX} to LDFLAGS"
+fi
+if test x"$libcurl" == xyes ; then
+  AC_CHECK_LIB(curl, curl_global_init)
+  if test x"$ac_cv_lib_curl_curl_global_init" = xyes; then
+    echo "Found a suitable curl library"
+  else
+    echo "libcurl not found, specify --with-libcurl=no to build without cURL support"
+    exit 1;
+  fi
+else
+  echo "building without cURL support"
+fi
 
 echo
 echo Checking for systemd
