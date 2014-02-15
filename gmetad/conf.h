@@ -1,5 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H 1
+#include <arpa/inet.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include "llist.h"
@@ -15,10 +17,13 @@ typedef struct
       llist_entry *trusted_hosts;
       int unsummarized_sflow_vm_metrics;
       llist_entry *unsummarized_metrics;
+      llist_entry *summarized_metrics;
       int debug_level;
       int should_setuid;
       char *setuid_username;
       char *rrd_rootdir;
+      char *rrdcached_addrstr;
+      struct sockaddr_in rrdcached_address;
       char *carbon_server;
       int carbon_port;
       char *carbon_protocol;

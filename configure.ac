@@ -500,7 +500,7 @@ if test x"$libaprpath" != x && test x"$libaprpath" != xyes; then
   fi
 else
   PKG_CHECK_MODULES([APR],[apr-1])
-  LDFLAGS="$LIBS $APR_LIBS"
+  LDFLAGS="$LDFLAGS $LIBS $APR_LIBS"
   APR_INCLUDES="$APR_CFLAGS"
 fi
 
@@ -524,17 +524,12 @@ AC_ARG_WITH( riemann,
 if test x"$withval" = xyes; then riemann="yes"; fi)
 
 if test x"$riemann" == xyes; then
+  PKG_CHECK_MODULES([PROTOBUF], [libprotobuf-c])
   AC_CHECK_PROGS([PROTOC_C], [protoc-c], [:])
   if test "$PROTOC_C" = :; then
     AC_MSG_ERROR([This package needs 'protoc-c' tool. Try installing the 'protobuf-c-compiler' package.])
   fi
   AC_CONFIG_COMMANDS([riemann_pb-c.c], [protoc-c -Igmetad/ --c_out=./gmetad gmetad/riemann.proto])
-  AC_CHECK_LIB([protobuf-c], [protobuf_c_message_pack])
-  if test x"$ac_cv_lib_protobuf_c_protobuf_c_message_pack" = xno; then
-    echo "libprotobuf-c not found"  # package: libprotobuf-c0-dev
-    exit 1
-  fi
-  LDFLAGS="$LDFLAGS -lprotobuf-c"
   CFLAGS="$CFLAGS -DWITH_RIEMANN"
 fi
 AM_CONDITIONAL(BUILD_RIEMANN, test x"$riemann" = xyes)
@@ -687,6 +682,8 @@ AC_CHECK_HEADER([rpc/xdr.h], [],
 #endif
 ])
 
+PKG_CHECK_MODULES([CK], [ck])
+
 dnl ##################################################################
 dnl Checks for typedefs.
 dnl
@@ -768,6 +765,12 @@ if test x"$enable_memcheck" = xyes; then
    CFLAGS="$CFLAGS -fcheck-memory-usage "
    LDFLAGS="$LDFLAGS -lmpatrol -lbfd -liberty "
 fi
+
+AC_MSG_CHECKING([for __thread specifier])
+AC_TRY_COMPILE([static __thread int a;],[int b = a;],
+	       [AC_DEFINE(HAVE___THREAD, 1, HAVE___THREAD)
+	        AC_MSG_RESULT([exists, using native TLS])],
+	       [AC_MSG_RESULT([not found, defaulting to pthreads for TLS])])
 
 dnl Some system-specific stuff ...
 dnl Some operating systems require additional flags in order to get all
